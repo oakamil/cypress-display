@@ -1,17 +1,17 @@
 // Copyright (c) 2025 Omair Kamil
 // See LICENSE file in root directory for license terms.
 
+mod cedar_client;
+
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, LazyLock,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
 
-use cypress_display::cedar_client::{
-    CedarClient, ResponseStatus, ServerMode, ServerState,
-};
+use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
 use embedded_graphics::{
     pixelcolor::Rgb565,
@@ -27,9 +27,8 @@ use simple_signal::{self, Signal};
 use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
 use u8g2_fonts::{
-    fonts,
+    FontRenderer, fonts,
     types::{FontColor, HorizontalAlignment, VerticalPosition},
-    FontRenderer,
 };
 
 static STATUS_FONT: LazyLock<FontRenderer> =
@@ -41,23 +40,16 @@ static GUIDANCE_FONT: LazyLock<FontRenderer> =
 const FG_COLOR: Rgb565 = Rgb565::RED;
 const BG_COLOR: Rgb565 = Rgb565::BLACK;
 
-const TRIANGLE_STYLE: PrimitiveStyle<Rgb565> =
-    PrimitiveStyle::with_fill(FG_COLOR);
-const TRIANGLE_STALE_STYLE: PrimitiveStyle<Rgb565> =
-    PrimitiveStyle::with_stroke(FG_COLOR, 2);
-const ARROW_SHAFT_STYLE: PrimitiveStyle<Rgb565> =
-    PrimitiveStyle::with_stroke(FG_COLOR, 3);
-const ARROW_HEAD_STYLE: PrimitiveStyle<Rgb565> =
-    PrimitiveStyle::with_fill(FG_COLOR);
-const ARC_STYLE: PrimitiveStyle<Rgb565> =
-    PrimitiveStyle::with_stroke(FG_COLOR, 3);
+const TRIANGLE_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_fill(FG_COLOR);
+const TRIANGLE_STALE_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 2);
+const ARROW_SHAFT_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 3);
+const ARROW_HEAD_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_fill(FG_COLOR);
+const ARC_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 3);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = pico_args::Arguments::from_env();
-    let brightness: u8 = match args
-        .opt_value_from_str::<_, u32>("--brightness")?
-    {
+    let brightness: u8 = match args.opt_value_from_str::<_, u32>("--brightness")? {
         Some(val) if (1..=255).contains(&val) => val as u8,
         Some(_) => return Err("Brightness must be between 1 and 255".into()),
         None => 0x80, // Default to 50%
@@ -66,13 +58,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If the program is terminated make sure we can clean up
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
-    simple_signal::set_handler(
-        &[Signal::Int, Signal::Term],
-        move |signal_rec| {
-            println!("Signal received : '{:?}'", signal_rec);
-            r.store(false, Ordering::SeqCst);
-        },
-    );
+    simple_signal::set_handler(&[Signal::Int, Signal::Term], move |signal_rec| {
+        println!("Signal received : '{:?}'", signal_rec);
+        r.store(false, Ordering::SeqCst);
+    });
 
     // Initialize the OLED display (using hardware configuration from
     // cedar-lite-server)
@@ -176,12 +165,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn draw_operating_state<D>(
-    disp: &mut D,
-    state: &ServerState,
-    is_current: bool,
-    stale_angle: u32,
-) where
+fn draw_operating_state<D>(disp: &mut D, state: &ServerState, is_current: bool, stale_angle: u32)
+where
     D: DrawTarget<Color = Rgb565>,
     D::Error: std::fmt::Debug,
 {
@@ -246,34 +231,18 @@ fn draw_operating_state<D>(
             TRIANGLE_STALE_STYLE
         };
         if tilt > 0.0 {
-            Triangle::new(
-                Point::new(15, 0),
-                Point::new(0, 30),
-                Point::new(30, 30),
-            )
+            Triangle::new(Point::new(15, 0), Point::new(0, 30), Point::new(30, 30))
         } else {
-            Triangle::new(
-                Point::new(0, 0),
-                Point::new(30, 0),
-                Point::new(15, 30),
-            )
+            Triangle::new(Point::new(0, 0), Point::new(30, 0), Point::new(15, 30))
         }
         .into_styled(tri_style)
         .draw(disp)
         .unwrap();
 
         if rot > 0.0 {
-            Triangle::new(
-                Point::new(0, 97),
-                Point::new(0, 127),
-                Point::new(30, 112),
-            )
+            Triangle::new(Point::new(0, 97), Point::new(0, 127), Point::new(30, 112))
         } else {
-            Triangle::new(
-                Point::new(30, 97),
-                Point::new(30, 127),
-                Point::new(0, 112),
-            )
+            Triangle::new(Point::new(30, 97), Point::new(30, 127), Point::new(0, 112))
         }
         .into_styled(tri_style)
         .draw(disp)

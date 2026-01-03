@@ -2,7 +2,7 @@
 // See LICENSE file in root directory for license terms.
 
 use cedar_elements::cedar::{
-    cedar_client::CedarClient as GrpcClient, FrameRequest, MountType, OperatingMode,
+    FrameRequest, MountType, OperatingMode, cedar_client::CedarClient as GrpcClient,
 };
 use log::{debug, warn};
 use tonic::transport::Channel;
