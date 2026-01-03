@@ -40,14 +40,14 @@ The display driver daemon. It connects to the hardware display and queries Cedar
 
 ## Installation
 
-A distribution zipfile is provided [here](https://github.com/oakamil/cypress-display/blob/main/dist/cypress-display.zip).
+A distribution zipfile is provided [here](https://github.com/oakamil/cypress-display/raw/refs/heads/main/dist/cypress-display.zip).
 
 ### Download Instructions
 
 If your Cedar™ e-finder device has internet access the distribution archive can be downloaded directly:
 
 ```Bash
-wget https://github.com/oakamil/cypress-display/blob/main/dist/cypress-display.zip
+wget https://github.com/oakamil/cypress-display/raw/refs/heads/main/dist/cypress-display.zip
 ```
 
 Otherwise you can download the file to a computer and use scp to transfer it to the e-finder device after connecting to its WiFi network:
