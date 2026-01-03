@@ -1,0 +1,63 @@
+# Cypress Display
+
+`cypress-display` provides a display controller designed to work alongside the [Cedar™](https://github.com/smroid/cedar) telescope control system. 
+
+`cypress-display` drives a hardware OLED display, consuming data from Cedar™ server to display its PushTo guidance.
+
+## Hardware Requirements
+
+This software is intended to run on Linux-based embedded hardware, specifically the **Raspberry Pi**, as it utilizes hardware-specific HALs (e.g. `rppal`, `linux-embedded-hal`).
+
+`cypress-display` is built for use with an SSD1351-based OLED RGB display with a resolution of 128x128. It has been tested with the [Waveshare 1.5 RGB OLED display module](https://www.waveshare.com/1.5inch-rgb-oled-module.htm).
+* **Interface**: SPI (must be enabled via raspi-config)
+* **Wiring**: Refer to Waveshare's wiring [diagram](https://www.waveshare.com/img/devkit/LCD/1.5inch-RGB-OLED-Module/1.5inch-RGB-OLED-Module-details-5.jpg)
+
+## Building
+
+### Software Prerequisites
+
+* **Rust**: Stable toolchain (edition 2024).
+* **Cedar™ Server**: This application expects `cedar-server` to be running on `localhost:80`.
+
+### Build Instructions
+
+You can build the project using the provided helper script or standard Cargo commands.
+
+#### Using Build Script
+
+```Bash
+./build.sh
+```
+
+This will compile the binary and place it in the ./bin directory.
+
+#### Using Cargo
+
+```Bash
+cargo build --release
+```
+
+## Usage
+
+### cypress-display
+
+The display driver daemon. It connects to the hardware display and queries Cedar™ server to render the UI.
+
+```Bash
+./bin/cypress-display --brightness 128
+```
+* `--brightness`: (Optional) Set display brightness (1-255). Default is 128 (50%).
+
+## License
+
+This project is licensed under the Functional Source License, Version 1.1, MIT Future License (FSL-1.1-MIT).
+
+See LICENSE.md for full details.
+
+## Disclaimer
+
+All product names, trademarks and registered trademarks are property of their respective owners. All company, product and service names used in this website are for identification purposes only. Use of these names, trademarks and brands does not imply endorsement.
+
+`cypress-display` is not affiliated with, endorsed by, or sponsored by Clear Skies Astro.
+
+Cedar™ is a trademark of Clear Skies Astro, registered in the U.S. and other countries.
