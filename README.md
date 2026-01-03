@@ -21,17 +21,7 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 
 ### Build Instructions
 
-You can build the project using the provided helper script or standard Cargo commands.
-
-#### Using Build Script
-
-```Bash
-./build.sh
-```
-
-This will compile the binary and place it in the ./bin directory.
-
-#### Using Cargo
+You can build the project using standard Cargo commands.
 
 ```Bash
 cargo build --release
@@ -44,7 +34,7 @@ cargo build --release
 The display driver daemon. It connects to the hardware display and queries Cedar™ server to render the UI.
 
 ```Bash
-./bin/cypress-display --brightness 128
+./target/release/cypress-display --brightness 128
 ```
 * `--brightness`: (Optional) Set display brightness (1-255). Default is 128 (50%).
 
