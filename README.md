@@ -38,6 +38,33 @@ The display driver daemon. It connects to the hardware display and queries Cedar
 ```
 * `--brightness`: (Optional) Set display brightness (1-255). Default is 128 (50%).
 
+## Installation
+
+A distribution zipfile is provided [here](https://github.com/oakamil/cypress-display/blob/main/dist/cypress-display.zip).
+
+### Download Instructions
+
+If your Cedar™ e-finder device has internet access the distribution archive can be downloaded directly:
+
+```Bash
+wget https://github.com/oakamil/cypress-display/blob/main/dist/cypress-display.zip
+```
+
+Otherwise you can download the file to a computer and use scp to transfer it to the e-finder device after connecting to its WiFi network:
+
+```Bash
+scp ~/Downloads/cypress-display.zip cedar@192.168.4.1:.
+```
+
+### Install Script
+
+The provided distribution archive includes a script to install `cypress-display` as a service to automatically start when the e-finder boots.
+
+```Bash
+unzip cypress-display.zip
+./install.sh
+```
+
 ## License
 
 This project is licensed under the Functional Source License, Version 1.1, MIT Future License (FSL-1.1-MIT).
