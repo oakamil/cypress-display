@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             last_slew = None;
                         }
                         if let Some(slew) = last_slew.clone() {
-                            draw_operating_state(&mut disp, &slew, false, stale_angle);
+                            draw_operating_state(&mut disp, &slew, Some(stale_angle));
                             stale_angle = (stale_angle + 9) % 360;
                         } else {
                             STATUS_FONT
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .unwrap();
                         }
                     } else {
-                        draw_operating_state(&mut disp, &state, true, 0);
+                        draw_operating_state(&mut disp, &state, None);
                         last_slew = Some(state.clone());
                     }
                 }
@@ -165,11 +165,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn draw_operating_state<D>(disp: &mut D, state: &ServerState, is_current: bool, stale_angle: u32)
+// If stale_angle is None then the guidance is current. Otherwise stale_angle indicates the desired
+// rotation of the staleness semi-circle indicator.
+fn draw_operating_state<D>(disp: &mut D, state: &ServerState, stale_angle: Option<u32>)
 where
     D: DrawTarget<Color = Rgb565>,
     D::Error: std::fmt::Debug,
 {
+    let is_current = stale_angle.is_some();
     let tilt = state.tilt_target_distance;
     let rot = state.rotation_target_distance;
 
@@ -200,7 +203,7 @@ where
     // For EQ render the cardinal direction label
     if !state.is_alt_az {
         // Blink the label if stale
-        if is_current || (stale_angle % 72 < 36) {
+        if is_current || (stale_angle.unwrap() % 72 < 36) {
             GUIDANCE_FONT
                 .render_aligned(
                     if tilt > 0.0 { "N" } else { "S" },
@@ -268,7 +271,7 @@ where
         DisplayArc::new(
             Point::new(44, 44),
             40,
-            (stale_angle as f32).deg(),
+            (stale_angle.unwrap() as f32).deg(),
             90.0.deg(),
         )
         .into_styled(ARC_STYLE)
