@@ -1,0 +1,11 @@
+[Unit]
+Description=Cypress Display
+Wants=NetworkManager.service network-online.target
+
+[Service]
+User=cedar
+Type=simple
+ExecStart=/home/cedar/cypress/bin/cypress-display
+
+[Install]
+WantedBy=multi-user.target
