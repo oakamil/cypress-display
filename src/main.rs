@@ -6,11 +6,18 @@ mod cedar_client;
 use std::{
     sync::{
         Arc, LazyLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU8, Ordering},
     },
     time::Duration,
+    path::PathBuf,
 };
 
+use axum::{
+    extract::{State, Json},
+    routing::{get, post},
+    Router,
+    http::StatusCode,
+};
 use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
 use embedded_graphics::{
@@ -26,6 +33,8 @@ use rppal::{
 use simple_signal::{self, Signal};
 use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
+use tower_http::services::ServeDir;
+use serde::{Deserialize, Serialize};
 use u8g2_fonts::{
     FontRenderer, fonts,
     types::{FontColor, HorizontalAlignment, VerticalPosition},
@@ -46,14 +55,61 @@ const ARROW_SHAFT_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG
 const ARROW_HEAD_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_fill(FG_COLOR);
 const ARC_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 3);
 
+const PREFS_FILENAME: &str = "cb_prefs.json";
+const SERVER_ADDRESS: &str = "0.0.0.0:6030";
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+struct AppPrefs {
+    brightness: Option<u8>,
+}
+
+#[derive(Clone)]
+struct ServerContext {
+    brightness: Arc<AtomicU8>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = pico_args::Arguments::from_env();
-    let brightness: u8 = match args.opt_value_from_str::<_, u32>("--brightness")? {
-        Some(val) if (1..=255).contains(&val) => val as u8,
+    
+    // Command-line brightness takes precedence over the value in prefs
+    let cli_brightness = match args.opt_value_from_str::<_, u32>("--brightness")? {
+        Some(val) if (1..=255).contains(&val) => Some(val as u8),
         Some(_) => return Err("Brightness must be between 1 and 255".into()),
-        None => 0x80, // Default to 50%
+        None => None,
     };
+
+    let prefs_path = get_prefs_path()?;
+    let file_brightness = if let Ok(contents) = std::fs::read_to_string(&prefs_path) {
+        serde_json::from_str::<AppPrefs>(&contents)
+            .ok()
+            .and_then(|p| p.brightness)
+            .unwrap_or(0x80)
+    } else {
+        // Default to 50%
+        0x80
+    };
+
+    let initial_brightness = cli_brightness.unwrap_or(file_brightness);
+    
+    // Shared state for the web server and display loop
+    let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
+    let server_ctx = ServerContext {
+        brightness: shared_brightness.clone(),
+    };
+    
+    tokio::spawn(async move {
+        let app = Router::new()
+            .route("/api/brightness", get(get_brightness).post(set_brightness))
+            .nest_service("/", ServeDir::new("web")); 
+
+        if let Ok(listener) = tokio::net::TcpListener::bind(SERVER_ADDRESS).await {
+            println!("Web UI running on http://{}", SERVER_ADDRESS);
+            let _ = axum::serve(listener, app).await;
+        } else {
+            eprintln!("Failed to bind to {}", SERVER_ADDRESS);
+        }
+    });
 
     // If the program is terminated make sure we can clean up
     let running = Arc::new(AtomicBool::new(true));
@@ -63,8 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r.store(false, Ordering::SeqCst);
     });
 
-    // Initialize the OLED display (using hardware configuration from
-    // cedar-lite-server)
+    // Initialize the OLED display
     let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 19660800, Mode::Mode0)?;
     let gpio = Gpio::new()?;
     let dc = gpio.get(25)?.into_output();
@@ -75,8 +130,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     disp.reset(&mut rst, &mut Delay).unwrap();
     disp.turn_on().unwrap();
-    // Set the brightness to 50%
-    disp.set_brightness(brightness).unwrap();
+    
+    let mut current_brightness = initial_brightness;
+    disp.set_brightness(current_brightness).unwrap();
 
     let mut client = CedarClient::new();
 
@@ -85,6 +141,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stale_angle = 0;
 
     while running.load(Ordering::SeqCst) {
+        // Check if brightness changed via the web UI
+        let target_brightness = shared_brightness.load(Ordering::Relaxed);
+        if target_brightness != current_brightness {
+            println!("Updating display brightness to {}", target_brightness);
+            disp.set_brightness(target_brightness).unwrap();
+            current_brightness = target_brightness;
+        }
+
         let resp = client.get_state().await;
 
         // Clear display for new frame
@@ -165,8 +229,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// If stale_angle is None then the guidance is current. Otherwise stale_angle indicates the desired
-// rotation of the staleness semi-circle indicator.
 fn draw_operating_state<D>(disp: &mut D, state: &ServerState, stale_angle: Option<u32>)
 where
     D: DrawTarget<Color = Rgb565>,
@@ -176,7 +238,6 @@ where
     let tilt = state.tilt_target_distance;
     let rot = state.rotation_target_distance;
 
-    // Draw the tilt offset at the top
     GUIDANCE_FONT
         .render_aligned(
             format_offset(tilt).as_str(),
@@ -188,7 +249,6 @@ where
         )
         .unwrap();
 
-    // Draw the rotation offset at the bottom
     GUIDANCE_FONT
         .render_aligned(
             format_offset(rot).as_str(),
@@ -200,9 +260,7 @@ where
         )
         .unwrap();
 
-    // For EQ render the cardinal direction label
     if !state.is_alt_az {
-        // Blink the label if stale
         if is_current || (stale_angle.unwrap() % 72 < 36) {
             GUIDANCE_FONT
                 .render_aligned(
@@ -227,7 +285,6 @@ where
                 .unwrap();
         }
     } else {
-        // Render direction triangles for alt-az
         let tri_style = if is_current {
             TRIANGLE_STYLE
         } else {
@@ -253,21 +310,6 @@ where
     }
 
     if !is_current {
-        // Solution is not fresh, indicate that to user
-        // STATUS_FONT
-        // .render_aligned(
-        // "...",
-        // Point::new(64, 64),
-        // VerticalPosition::Center,
-        // HorizontalAlignment::Center,
-        // FontColor::Transparent(FG_COLOR),
-        // disp,
-        // )
-        // .unwrap();
-
-        // Render a quarter circle (90 degree sector) with radius 20
-        // centered at (64, 64). The bounding box is (64-20, 64-20)
-        // with a diameter of 40.
         DisplayArc::new(
             Point::new(44, 44),
             40,
@@ -280,21 +322,13 @@ where
         return;
     }
 
-    // Render target angle arrow
-
-    // Angle math assumes that 0 is right, 90 is up. Cedar
-    // uses 0 as up and 90 as left.
     let display_angle_rad = (state.target_angle as f64 + 90.0).to_radians();
 
-    // Arrow Dimensions
     let total_len = 40.0;
-    // 20.0px offset from center for tip and tail
     let half_len = total_len / 2.0;
     let head_len = 12.0;
     let head_width = 12.0;
 
-    // Calculate tip and tail points relative to the screen
-    // center
     let cos_a = display_angle_rad.cos();
     let sin_a = display_angle_rad.sin();
 
@@ -308,14 +342,12 @@ where
         64 + (half_len * sin_a) as i32,
     );
 
-    // The head base center is 'head_len' back from the tip
     let head_base_offset = half_len - head_len;
     let head_base_center = Point::new(
         64 + (head_base_offset * cos_a) as i32,
         64 - (head_base_offset * sin_a) as i32,
     );
 
-    // Perpendicular angles for the triangle base corners
     let angle_perp_plus = display_angle_rad + std::f64::consts::FRAC_PI_2;
     let angle_perp_minus = display_angle_rad - std::f64::consts::FRAC_PI_2;
     let half_width = head_width / 2.0;
@@ -330,13 +362,11 @@ where
         head_base_center.y - (half_width * angle_perp_minus.sin()) as i32,
     );
 
-    // Draw shaft from the tail to the base of the head
     Line::new(tail, head_base_center)
         .into_styled(ARROW_SHAFT_STYLE)
         .draw(disp)
         .unwrap();
 
-    // Draw head
     Triangle::new(tip, corner1, corner2)
         .into_styled(ARROW_HEAD_STYLE)
         .draw(disp)
@@ -352,4 +382,34 @@ fn format_offset(num: f64) -> String {
     } else {
         format!("{:.2}", n)
     }
+}
+
+async fn get_brightness(State(ctx): State<ServerContext>) -> Json<AppPrefs> {
+    let b = ctx.brightness.load(Ordering::Relaxed);
+    Json(AppPrefs { brightness: Some(b) })
+}
+
+async fn set_brightness(
+    State(ctx): State<ServerContext>,
+    Json(payload): Json<AppPrefs>,
+) -> StatusCode {
+    if let Some(b) = payload.brightness {
+        ctx.brightness.store(b, Ordering::Relaxed);
+        
+        // Save to prefs
+        if let Ok(path) = get_prefs_path() {
+             let prefs = AppPrefs { brightness: Some(b) };
+             if let Ok(data) = serde_json::to_string_pretty(&prefs) {
+                 let _ = std::fs::write(path, data);
+             }
+        }
+    }
+    StatusCode::OK
+}
+
+fn get_prefs_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let mut path = std::env::current_exe()?;
+    path.pop();
+    path.push(PREFS_FILENAME);
+    Ok(path)
 }
