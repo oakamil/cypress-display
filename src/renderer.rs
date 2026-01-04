@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Omair Kamil
+// See LICENSE file in root directory for license terms.
+
 use embedded_graphics::{
     pixelcolor::Rgb565,
     prelude::*,

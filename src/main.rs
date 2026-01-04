@@ -3,104 +3,35 @@
 
 mod cedar_client;
 mod renderer;
+mod web;
 
 use std::{
-    path::PathBuf,
     sync::{
-        Arc,
-        RwLock, // Added RwLock for shared frame data
+        Arc, RwLock,
         atomic::{AtomicBool, AtomicU8, Ordering},
     },
     time::Duration,
 };
 
-use axum::{
-    Router,
-    body::Bytes, // Use Bytes for efficient response
-    extract::{Json, State},
-    http::{StatusCode, header},
-    response::IntoResponse,
-    routing::get,
-};
+use axum::{Router, routing::get};
 use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
-use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
+use embedded_graphics::prelude::*;
 use linux_embedded_hal::Delay;
 use renderer::{BG_COLOR, DrawState, draw_ui};
 use rppal::{
     gpio::Gpio,
     spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
 };
-use serde::{Deserialize, Serialize};
 use simple_signal::{self, Signal};
 use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
 use tower_http::services::ServeDir;
+use web::{
+    AppPrefs, Framebuffer, ServerContext, get_brightness, get_frame, get_prefs_path, set_brightness,
+};
 
-const PREFS_FILENAME: &str = "cb_prefs.json";
 const SERVER_ADDRESS: &str = "0.0.0.0:6030";
-
-#[derive(Serialize, Deserialize, Default, Clone)]
-struct AppPrefs {
-    brightness: Option<u8>,
-}
-
-#[derive(Clone)]
-struct ServerContext {
-    brightness: Arc<AtomicU8>,
-    // Shared buffer for the latest frame (raw RGB565 bytes)
-    frame: Arc<RwLock<Vec<u8>>>,
-}
-
-struct Framebuffer {
-    pub pixels: [Rgb565; 128 * 128],
-}
-
-impl Framebuffer {
-    fn new() -> Self {
-        Self {
-            pixels: [Rgb565::BLACK; 128 * 128],
-        }
-    }
-
-    fn clear(&mut self, color: Rgb565) {
-        self.pixels.fill(color);
-    }
-
-    // Helper to get raw bytes for the web stream
-    fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self.pixels.as_ptr() as *const u8,
-                self.pixels.len() * 2, // 2 bytes per pixel
-            )
-        }
-    }
-}
-
-impl OriginDimensions for Framebuffer {
-    fn size(&self) -> Size {
-        Size::new(128, 128)
-    }
-}
-
-impl DrawTarget for Framebuffer {
-    type Color = Rgb565;
-    type Error = core::convert::Infallible;
-
-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = Pixel<Self::Color>>,
-    {
-        for Pixel(point, color) in pixels {
-            if point.x >= 0 && point.x < 128 && point.y >= 0 && point.y < 128 {
-                let index = (point.y as usize) * 128 + (point.x as usize);
-                self.pixels[index] = color;
-            }
-        }
-        Ok(())
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -144,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         let app = Router::new()
             .route("/api/brightness", get(get_brightness).post(set_brightness))
-            .route("/api/frame", get(get_frame)) // New route for frame data
+            .route("/api/frame", get(get_frame))
             .nest_service("/", ServeDir::new(web_path))
             .with_state(server_ctx);
 
@@ -240,52 +171,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     disp.reset(&mut rst, &mut Delay).unwrap();
     disp.turn_off().unwrap();
     Ok(())
-}
-
-async fn get_brightness(State(ctx): State<ServerContext>) -> Json<AppPrefs> {
-    let b = ctx.brightness.load(Ordering::Relaxed);
-    Json(AppPrefs {
-        brightness: Some(b),
-    })
-}
-
-async fn set_brightness(
-    State(ctx): State<ServerContext>,
-    Json(payload): Json<AppPrefs>,
-) -> StatusCode {
-    if let Some(b) = payload.brightness {
-        ctx.brightness.store(b, Ordering::Relaxed);
-        if let Ok(path) = get_prefs_path() {
-            let prefs = AppPrefs {
-                brightness: Some(b),
-            };
-            if let Ok(data) = serde_json::to_string_pretty(&prefs) {
-                let _ = std::fs::write(path, data);
-            }
-        }
-    }
-    StatusCode::OK
-}
-
-// Handler to serve the latest frame buffer
-async fn get_frame(State(ctx): State<ServerContext>) -> impl IntoResponse {
-    let frame_data = {
-        if let Ok(lock) = ctx.frame.read() {
-            lock.clone()
-        } else {
-            vec![]
-        }
-    };
-
-    (
-        [(header::CONTENT_TYPE, "application/octet-stream")],
-        Bytes::from(frame_data),
-    )
-}
-
-fn get_prefs_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let mut path = std::env::current_exe()?;
-    path.pop();
-    path.push(PREFS_FILENAME);
-    Ok(path)
 }
