@@ -37,6 +37,8 @@ const SERVER_ADDRESS: &str = "0.0.0.0:6030";
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = pico_args::Arguments::from_env();
 
+    let mirror_enabled = args.contains("--mirror");
+
     let cli_brightness = match args.opt_value_from_str::<_, u32>("--brightness")? {
         Some(val) if (1..=255).contains(&val) => Some(val as u8),
         Some(_) => return Err("Brightness must be between 1 and 255".into()),
@@ -55,6 +57,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let initial_brightness = cli_brightness.unwrap_or(file_brightness);
 
+    let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
+    // Initialize shared frame with black pixels (128*128*2 bytes)
+    let shared_frame = Arc::new(RwLock::new(vec![0u8; 128 * 128 * 2]));
+
     let web_path = std::env::current_dir().unwrap_or_default().join("web");
     if !web_path.exists() {
         Err(format!(
@@ -62,10 +68,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             web_path.to_str().unwrap()
         ))?;
     }
-
-    let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
-    // Initialize shared frame with black pixels (128*128*2 bytes)
-    let shared_frame = Arc::new(RwLock::new(vec![0u8; 128 * 128 * 2]));
 
     let server_ctx = ServerContext {
         brightness: shared_brightness.clone(),
@@ -109,7 +111,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     disp.set_brightness(current_brightness).unwrap();
 
     // Virtual framebuffer for web rendering
-    let mut web_fb = Framebuffer::new();
+    let mut web_fb = if mirror_enabled {
+        Some(Framebuffer::new())
+    } else {
+        None
+    };
 
     let mut client = CedarClient::new();
     let mut last_slew: Option<ServerState> = None;
@@ -157,12 +163,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         draw_ui(&mut disp, &draw_state);
         let _ = disp.flush();
 
-        // Draw to virtual framebuffer and update shared state
-        web_fb.clear(BG_COLOR);
-        draw_ui(&mut web_fb, &draw_state);
+        // Draw to virtual framebuffer
+        if mirror_enabled {
+            if let Some(fb) = &mut web_fb {
+                fb.clear(BG_COLOR);
+                draw_ui(fb, &draw_state);
 
-        if let Ok(mut lock) = shared_frame.write() {
-            lock.copy_from_slice(web_fb.as_bytes());
+                if let Ok(mut lock) = shared_frame.write() {
+                    lock.copy_from_slice(fb.as_bytes());
+                }
+            }
         }
 
         sleep(Duration::from_millis(50)).await;

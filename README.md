@@ -40,8 +40,7 @@ cd out/cypress/bin
 ./cypress-display --brightness 128
 ```
 * `--brightness`: (Optional) Set display brightness (1-255). Default is 128 (50%).
-* `--record`: (Optional) Record video of the output to the specified file.
-
+* `--mirror`: (Optional) Mirror the physical display to the web UI.
 
 ### Brightness Update
 
@@ -49,17 +48,15 @@ The brightness can be updated in the field by connecting to the e-finder's WiFi 
 
 <img width="575" height="409" alt="cypress-display" src="https://github.com/user-attachments/assets/cfaa94f2-fa01-4663-88f6-4cc9952af6e1" />
 
-### Recording Display
+### Display Mirror
 
-`cypress-display` includes the ability to record the displayed output to a file. FFmpeg must be installed on the system:
+`cypress-display` includes the ability to mirror the displayed output to the web UI.
 
 ```Bash
-sudo apt-get install ffmpeg -y
-
-./cypress-display.sh --record /tmp/cypress.mp4
+./cypress-display.sh --mirror
 ```
 
-The recorded video will mirror the OLED display.
+The mirrored display is available at ``https://192.168.4.1:6030/mirror`.
 
 ## Installation
 
