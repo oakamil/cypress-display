@@ -45,6 +45,8 @@ cd out/cypress/bin
 
 The brightness can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
 
+<img width="575" height="409" alt="cypress-display" src="https://github.com/user-attachments/assets/cfaa94f2-fa01-4663-88f6-4cc9952af6e1" />
+
 ## Installation
 
 A distribution zipfile is provided [here](https://github.com/oakamil/cypress-display/raw/refs/heads/main/dist/cypress-display.zip).
