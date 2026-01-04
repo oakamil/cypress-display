@@ -40,10 +40,24 @@ cd out/cypress/bin
 ./cypress-display --brightness 128
 ```
 * `--brightness`: (Optional) Set display brightness (1-255). Default is 128 (50%).
+* `--record`: (Optional) Record video of the output to the specified file.
+
 
 ### Brightness Update
 
 The brightness can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
+
+### Recording Display
+
+`cypress-display` includes the ability to record the displayed output to a file. FFmpeg must be installed on the system:
+
+```Bash
+sudo apt-get install ffmpeg -y
+
+./cypress-display.sh --record /tmp/cypress.mp4
+```
+
+The recorded video will mirror the OLED display.
 
 ## Installation
 

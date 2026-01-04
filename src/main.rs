@@ -4,7 +4,9 @@
 mod cedar_client;
 
 use std::{
+    io::Write,
     path::PathBuf,
+    process::{Child, Command, Stdio},
     sync::{
         Arc, LazyLock,
         atomic::{AtomicBool, AtomicU8, Ordering},
@@ -68,6 +70,113 @@ struct ServerContext {
     brightness: Arc<AtomicU8>,
 }
 
+// Represents the visual state of the screen
+enum DrawState<'a> {
+    Message(String),
+    // State, stale_angle
+    Operating(&'a ServerState, Option<u32>),
+}
+
+struct Framebuffer {
+    pub pixels: [Rgb565; 128 * 128],
+}
+
+impl Framebuffer {
+    fn new() -> Self {
+        Self {
+            pixels: [Rgb565::BLACK; 128 * 128],
+        }
+    }
+
+    fn clear(&mut self, color: Rgb565) {
+        self.pixels.fill(color);
+    }
+}
+
+impl OriginDimensions for Framebuffer {
+    fn size(&self) -> Size {
+        Size::new(128, 128)
+    }
+}
+
+impl DrawTarget for Framebuffer {
+    type Color = Rgb565;
+    type Error = core::convert::Infallible;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(point, color) in pixels {
+            // Check bounds to prevent panics
+            if point.x >= 0 && point.x < 128 && point.y >= 0 && point.y < 128 {
+                let index = (point.y as usize) * 128 + (point.x as usize);
+                self.pixels[index] = color;
+            }
+        }
+        Ok(())
+    }
+}
+
+struct VideoRecorder {
+    process: Child,
+    fb: Framebuffer,
+}
+
+impl VideoRecorder {
+    fn new(filename: &str) -> std::io::Result<Self> {
+        // Spawns ffmpeg to read raw RGB565LE video from stdin
+        let process = Command::new("ffmpeg")
+            .args(&[
+                // Overwrite output
+                "-y",
+                "-f",
+                "rawvideo",
+                // Little Endian RGB565 (RPi default)
+                "-pixel_format",
+                "rgb565le",
+                "-video_size",
+                "128x128",
+                "-framerate",
+                "20",
+                // Read from stdin
+                "-i",
+                "-",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+                filename,
+            ])
+            .stdin(Stdio::piped())
+            .spawn()?;
+
+        Ok(Self {
+            process,
+            fb: Framebuffer::new(),
+        })
+    }
+
+    fn draw_and_write(&mut self, state: &DrawState) {
+        self.fb.clear(BG_COLOR);
+
+        // Draw the exact same content as the screen
+        draw_ui(&mut self.fb, state);
+
+        // Write raw bytes to ffmpeg
+        if let Some(stdin) = self.process.stdin.as_mut() {
+            // Unsafe cast: Treat the [Rgb565] array as a byte slice.
+            // Rgb565 is a transparent wrapper around u16, so this is safe for reading.
+            let ptr = self.fb.pixels.as_ptr() as *const u8;
+            let len = self.fb.pixels.len() * 2; // 2 bytes per pixel
+            let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+            let _ = stdin.write_all(bytes);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = pico_args::Arguments::from_env();
@@ -78,6 +187,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(_) => return Err("Brightness must be between 1 and 255".into()),
         None => None,
     };
+
+    // Record video of the displayed screen to the specified file if requested
+    let record_file = args.opt_value_from_str::<_, String>("--record")?;
 
     let prefs_path = get_prefs_path()?;
     let file_brightness = if let Ok(contents) = std::fs::read_to_string(&prefs_path) {
@@ -114,7 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_state(server_ctx);
 
         if let Ok(listener) = tokio::net::TcpListener::bind(SERVER_ADDRESS).await {
-            println!("Web UI running on http://{}", SERVER_ADDRESS);
+            println!("Brightness control UI running at http://{}", SERVER_ADDRESS);
             let _ = axum::serve(listener, app).await;
         } else {
             eprintln!("Failed to bind to {}", SERVER_ADDRESS);
@@ -144,6 +256,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut current_brightness = initial_brightness;
     disp.set_brightness(current_brightness).unwrap();
 
+    // Initialize the video recorder if requested
+    let mut recorder = if let Some(filename) = record_file {
+        println!("Recording video to: {}", filename);
+        Some(VideoRecorder::new(&filename)?)
+    } else {
+        None
+    };
+
     let mut client = CedarClient::new();
 
     // Keep the last valid guidance to display while slewing
@@ -160,76 +280,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let resp = client.get_state().await;
-
-        // Clear display for new frame
-        disp.clear(BG_COLOR).unwrap();
-
-        if resp.status != ResponseStatus::Success {
-            STATUS_FONT
-                .render_aligned(
-                    format!("{:?}", resp.status).as_str(),
-                    Point::new(64, 64),
-                    VerticalPosition::Center,
-                    HorizontalAlignment::Center,
-                    FontColor::Transparent(FG_COLOR),
-                    &mut disp,
-                )
-                .unwrap();
-        } else if let Some(state) = resp.server_state {
+        let draw_state = if resp.status != ResponseStatus::Success {
+            DrawState::Message(format!("{:?}", resp.status))
+        } else if let Some(state) = &resp.server_state {
             match state.server_mode {
                 ServerMode::Operating => {
                     if !state.has_slew_request {
                         if state.has_solution {
                             last_slew = None;
                         }
-                        if let Some(slew) = last_slew.clone() {
-                            draw_operating_state(&mut disp, &slew, Some(stale_angle));
+                        if let Some(slew) = &last_slew {
+                            let state = DrawState::Operating(slew, Some(stale_angle));
                             stale_angle = (stale_angle + 9) % 360;
+                            state
                         } else {
-                            STATUS_FONT
-                                .render_aligned(
-                                    "No Target",
-                                    Point::new(64, 64),
-                                    VerticalPosition::Center,
-                                    HorizontalAlignment::Center,
-                                    FontColor::Transparent(FG_COLOR),
-                                    &mut disp,
-                                )
-                                .unwrap();
+                            DrawState::Message("No Target".to_string())
                         }
                     } else {
-                        draw_operating_state(&mut disp, &state, None);
                         last_slew = Some(state.clone());
+                        DrawState::Operating(state, None)
                     }
                 }
-                ServerMode::Calibrating => {
-                    STATUS_FONT
-                        .render_aligned(
-                            "Calibrating",
-                            Point::new(64, 64),
-                            VerticalPosition::Center,
-                            HorizontalAlignment::Center,
-                            FontColor::Transparent(FG_COLOR),
-                            &mut disp,
-                        )
-                        .unwrap();
-                }
-                _ => {
-                    STATUS_FONT
-                        .render_aligned(
-                            "Setup Mode",
-                            Point::new(64, 64),
-                            VerticalPosition::Center,
-                            HorizontalAlignment::Center,
-                            FontColor::Transparent(FG_COLOR),
-                            &mut disp,
-                        )
-                        .unwrap();
-                }
+                ServerMode::Calibrating => DrawState::Message("Calibrating".to_string()),
+                _ => DrawState::Message("Setup Mode".to_string()),
             }
+        } else {
+            DrawState::Message("...".to_string())
+        };
+
+        // Clear display for new frame
+        disp.clear(BG_COLOR).unwrap();
+        draw_ui(&mut disp, &draw_state);
+        let _ = disp.flush();
+
+        if let Some(rec) = &mut recorder {
+            rec.draw_and_write(&draw_state);
         }
 
-        let _ = disp.flush();
         sleep(Duration::from_millis(50)).await;
     }
 
@@ -237,6 +324,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     disp.reset(&mut rst, &mut Delay).unwrap();
     disp.turn_off().unwrap();
     Ok(())
+}
+
+// Draw the UI to any target display
+fn draw_ui<D>(target: &mut D, state: &DrawState)
+where
+    D: DrawTarget<Color = Rgb565>,
+    D::Error: std::fmt::Debug,
+{
+    match state {
+        DrawState::Message(msg) => {
+            STATUS_FONT
+                .render_aligned(
+                    msg.as_str(),
+                    Point::new(64, 64),
+                    VerticalPosition::Center,
+                    HorizontalAlignment::Center,
+                    FontColor::Transparent(FG_COLOR),
+                    target,
+                )
+                .unwrap();
+        }
+        DrawState::Operating(s, stale) => {
+            draw_operating_state(target, s, *stale);
+        }
+    }
 }
 
 fn draw_operating_state<D>(disp: &mut D, state: &ServerState, stale_angle: Option<u32>)
