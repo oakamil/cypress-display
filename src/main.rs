@@ -92,6 +92,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let initial_brightness = cli_brightness.unwrap_or(file_brightness);
 
+    // Check web assets path
+    let web_path = std::env::current_dir().unwrap_or_default().join("web");
+    if !web_path.exists() {
+        Err(format!(
+            "Web directory not found at: {}",
+            web_path.to_str().unwrap()
+        ))?;
+    }
+
     // Shared state for the web server and display loop
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
     let server_ctx = ServerContext {
@@ -101,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         let app = Router::new()
             .route("/api/brightness", get(get_brightness).post(set_brightness))
-            .nest_service("/", ServeDir::new("web"))
+            .nest_service("/", ServeDir::new(web_path))
             .with_state(server_ctx);
 
         if let Ok(listener) = tokio::net::TcpListener::bind(SERVER_ADDRESS).await {
