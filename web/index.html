@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cypress Display</title>
+    <style>
+        body {
+            background-color: #000000;
+            color: #FF0000;
+            font-family: 'Roboto', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #121212;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(255, 0, 0, 0.2);
+            width: 300px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 2px solid #FF0000;
+            padding-bottom: 0.5rem;
+        }
+
+        .control-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #FF0000;
+        }
+
+        .value-display {
+            margin-top: 0.5rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cypress Display</h1>
+        
+        <div class="control-group">
+            <label for="brightness">Screen Brightness</label>
+            <input type="range" id="brightness" min="1" max="255">
+            <div class="value-display" id="valDisplay">...</div>
+        </div>
+    </div>
+
+    <script>
+        const slider = document.getElementById('brightness');
+        const valDisplay = document.getElementById('valDisplay');
+
+        fetch('/api/brightness')
+            .then(res => res.json())
+            .then(data => {
+                if (data.brightness) {
+                    slider.value = data.brightness;
+                    valDisplay.textContent = data.brightness;
+                }
+            })
+            .catch(err => console.error('Error fetching brightness:', err));
+
+        slider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            valDisplay.textContent = val;
+            
+            fetch('/api/brightness', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ brightness: val })
+            }).catch(err => console.error('Error setting brightness:', err));
+        });
+    </script>
+</body>
+</html>
