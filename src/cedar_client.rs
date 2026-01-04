@@ -102,9 +102,9 @@ impl CedarClient {
                     server_mode = ServerMode::Calibrating;
                 } else if let Some(op_settings) = &frame.operation_settings {
                     if let Some(mode) = op_settings.operating_mode {
-                        if mode == OperatingMode::Setup.into() {
+                        if mode == OperatingMode::Setup as i32 {
                             server_mode = ServerMode::Setup;
-                        } else if mode == OperatingMode::Operate.into() {
+                        } else if mode == OperatingMode::Operate as i32 {
                             server_mode = ServerMode::Operating;
                         }
                     }
@@ -113,7 +113,7 @@ impl CedarClient {
                 let mut is_alt_az = false;
                 if let Some(prefs) = &frame.preferences {
                     if let Some(mount) = prefs.mount_type {
-                        if mount == MountType::AltAz.into() {
+                        if mount == MountType::AltAz as i32 {
                             is_alt_az = true;
                         }
                     }

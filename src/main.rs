@@ -4,19 +4,19 @@
 mod cedar_client;
 
 use std::{
+    path::PathBuf,
     sync::{
         Arc, LazyLock,
         atomic::{AtomicBool, AtomicU8, Ordering},
     },
     time::Duration,
-    path::PathBuf,
 };
 
 use axum::{
-    extract::{State, Json},
-    routing::{get, post},
     Router,
+    extract::{Json, State},
     http::StatusCode,
+    routing::get,
 };
 use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
@@ -30,11 +30,11 @@ use rppal::{
     gpio::Gpio,
     spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
 };
+use serde::{Deserialize, Serialize};
 use simple_signal::{self, Signal};
 use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
 use tower_http::services::ServeDir;
-use serde::{Deserialize, Serialize};
 use u8g2_fonts::{
     FontRenderer, fonts,
     types::{FontColor, HorizontalAlignment, VerticalPosition},
@@ -71,7 +71,7 @@ struct ServerContext {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = pico_args::Arguments::from_env();
-    
+
     // Command-line brightness takes precedence over the value in prefs
     let cli_brightness = match args.opt_value_from_str::<_, u32>("--brightness")? {
         Some(val) if (1..=255).contains(&val) => Some(val as u8),
@@ -91,17 +91,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let initial_brightness = cli_brightness.unwrap_or(file_brightness);
-    
+
     // Shared state for the web server and display loop
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
     let server_ctx = ServerContext {
         brightness: shared_brightness.clone(),
     };
-    
+
     tokio::spawn(async move {
         let app = Router::new()
             .route("/api/brightness", get(get_brightness).post(set_brightness))
-            .nest_service("/", ServeDir::new("web")); 
+            .nest_service("/", ServeDir::new("web"))
+            .with_state(server_ctx);
 
         if let Ok(listener) = tokio::net::TcpListener::bind(SERVER_ADDRESS).await {
             println!("Web UI running on http://{}", SERVER_ADDRESS);
@@ -130,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     disp.reset(&mut rst, &mut Delay).unwrap();
     disp.turn_on().unwrap();
-    
+
     let mut current_brightness = initial_brightness;
     disp.set_brightness(current_brightness).unwrap();
 
@@ -386,7 +387,9 @@ fn format_offset(num: f64) -> String {
 
 async fn get_brightness(State(ctx): State<ServerContext>) -> Json<AppPrefs> {
     let b = ctx.brightness.load(Ordering::Relaxed);
-    Json(AppPrefs { brightness: Some(b) })
+    Json(AppPrefs {
+        brightness: Some(b),
+    })
 }
 
 async fn set_brightness(
@@ -395,13 +398,15 @@ async fn set_brightness(
 ) -> StatusCode {
     if let Some(b) = payload.brightness {
         ctx.brightness.store(b, Ordering::Relaxed);
-        
+
         // Save to prefs
         if let Ok(path) = get_prefs_path() {
-             let prefs = AppPrefs { brightness: Some(b) };
-             if let Ok(data) = serde_json::to_string_pretty(&prefs) {
-                 let _ = std::fs::write(path, data);
-             }
+            let prefs = AppPrefs {
+                brightness: Some(b),
+            };
+            if let Ok(data) = serde_json::to_string_pretty(&prefs) {
+                let _ = std::fs::write(path, data);
+            }
         }
     }
     StatusCode::OK

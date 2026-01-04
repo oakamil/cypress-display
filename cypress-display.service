@@ -4,6 +4,7 @@ Wants=NetworkManager.service network-online.target
 
 [Service]
 User=cedar
+WorkingDirectory=/home/cedar/cypress/bin
 Type=simple
 ExecStart=/home/cedar/cypress/bin/cypress-display
 
