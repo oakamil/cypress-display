@@ -36,9 +36,14 @@ This will place the binary and the web content into the directory `out/cypress/b
 The display driver daemon. It connects to the hardware display and queries Cedar™ server to render the UI.
 
 ```Bash
-./out/cypres/bin/cypress-display --brightness 128
+cd out/cypress/bin
+./cypress-display --brightness 128
 ```
 * `--brightness`: (Optional) Set display brightness (1-255). Default is 128 (50%).
+
+### Brightness Update
+
+The brightness can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
 
 ## Installation
 
