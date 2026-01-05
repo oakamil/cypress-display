@@ -4,7 +4,7 @@
 
 `cypress-display` drives a hardware OLED display, consuming data from Cedar™ server to display its PushTo guidance.
 
-https://github.com/user-attachments/assets/728d7f27-95ee-4680-95b5-addd81291981
+![Cypress Demo Small](https://github.com/user-attachments/assets/1374c194-d611-47f5-b0d9-2200074225a2)
 
 ## Hardware Requirements
 
