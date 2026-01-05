@@ -26,7 +26,7 @@ pub const FG_COLOR: Rgb565 = Rgb565::RED;
 pub const BG_COLOR: Rgb565 = Rgb565::BLACK;
 
 const TRIANGLE_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_fill(FG_COLOR);
-const TRIANGLE_STALE_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 2);
+const TRIANGLE_STALE_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 1);
 const ARROW_SHAFT_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 3);
 const ARROW_HEAD_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_fill(FG_COLOR);
 const ARC_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 3);
@@ -68,7 +68,7 @@ where
     D: DrawTarget<Color = Rgb565>,
     D::Error: std::fmt::Debug,
 {
-    let is_current = stale_angle.is_some();
+    let is_current = stale_angle.is_none();
     let tilt = state.tilt_target_distance;
     let rot = state.rotation_target_distance;
     let circle_angle = stale_angle.unwrap_or(0);
