@@ -4,6 +4,8 @@
 
 `cypress-display` drives a hardware OLED display, consuming data from Cedar™ server to display its PushTo guidance.
 
+https://github.com/user-attachments/assets/728d7f27-95ee-4680-95b5-addd81291981
+
 ## Hardware Requirements
 
 This software is intended to run on Linux-based embedded hardware, specifically the **Raspberry Pi**, as it utilizes hardware-specific HALs (e.g. `rppal`, `linux-embedded-hal`).
