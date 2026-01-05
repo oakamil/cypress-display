@@ -56,7 +56,7 @@ The brightness can be updated in the field by connecting to the e-finder's WiFi 
 ./cypress-display.sh --mirror
 ```
 
-The mirrored display is available at `https://192.168.4.1:6030/mirror`.
+The mirrored display is available at `https://192.168.4.1:6030/mirror`. The mirrored display can be used without the presence of a physical screen as long as SPI is enabled on the e-finder device.
 
 ## Installation
 
