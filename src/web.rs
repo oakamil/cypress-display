@@ -1,28 +1,26 @@
 // Copyright (c) 2025 Omair Kamil
 // See LICENSE file in root directory for license terms.
 
+use crate::prefs::{AppPrefs, save_brightness};
 use axum::{
+    Router,
     body::Bytes,
     extract::{Json, State},
     http::{StatusCode, header},
     response::IntoResponse,
+    routing::get,
 };
-use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
-use serde::{Deserialize, Serialize};
-use std::{
-    path::PathBuf,
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicU8, Ordering},
-    },
+use embedded_graphics::{
+    pixelcolor::Rgb565,
+    prelude::{DrawTarget, OriginDimensions, Pixel, RgbColor, Size},
 };
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicU8, Ordering},
+};
+use tower_http::services::ServeDir;
 
-const PREFS_FILENAME: &str = "cb_prefs.json";
-
-#[derive(Serialize, Deserialize, Default, Clone)]
-pub struct AppPrefs {
-    pub brightness: Option<u8>,
-}
+const SERVER_ADDRESS: &str = "0.0.0.0:6030";
 
 #[derive(Clone)]
 pub struct ServerContext {
@@ -81,33 +79,53 @@ impl DrawTarget for Framebuffer {
     }
 }
 
-pub async fn get_brightness(State(ctx): State<ServerContext>) -> Json<AppPrefs> {
+pub fn start_server(ctx: ServerContext) -> Result<(), Box<dyn std::error::Error>> {
+    let web_path = std::env::current_dir().unwrap_or_default().join("web");
+    if !web_path.exists() {
+        Err(format!(
+            "Web directory not found at: {}",
+            web_path.to_str().unwrap()
+        ))?;
+    }
+
+    tokio::spawn(async move {
+        let app = Router::new()
+            .route("/api/brightness", get(get_brightness).post(set_brightness))
+            .route("/api/frame", get(get_frame))
+            .nest_service("/", ServeDir::new(web_path))
+            .with_state(ctx);
+
+        if let Ok(listener) = tokio::net::TcpListener::bind(SERVER_ADDRESS).await {
+            println!("Web control UI running at http://{}", SERVER_ADDRESS);
+            let _ = axum::serve(listener, app).await;
+        } else {
+            eprintln!("Failed to bind to {}", SERVER_ADDRESS);
+        }
+    });
+
+    Ok(())
+}
+
+async fn get_brightness(State(ctx): State<ServerContext>) -> Json<AppPrefs> {
     let b = ctx.brightness.load(Ordering::Relaxed);
     Json(AppPrefs {
         brightness: Some(b),
     })
 }
 
-pub async fn set_brightness(
+async fn set_brightness(
     State(ctx): State<ServerContext>,
     Json(payload): Json<AppPrefs>,
 ) -> StatusCode {
     if let Some(b) = payload.brightness {
         ctx.brightness.store(b, Ordering::Relaxed);
-        if let Ok(path) = get_prefs_path() {
-            let prefs = AppPrefs {
-                brightness: Some(b),
-            };
-            if let Ok(data) = serde_json::to_string_pretty(&prefs) {
-                let _ = std::fs::write(path, data);
-            }
-        }
+        save_brightness(b);
     }
     StatusCode::OK
 }
 
 // Handler to serve the latest frame buffer
-pub async fn get_frame(State(ctx): State<ServerContext>) -> impl IntoResponse {
+async fn get_frame(State(ctx): State<ServerContext>) -> impl IntoResponse {
     let frame_data = {
         if let Ok(lock) = ctx.frame.read() {
             lock.clone()
@@ -120,11 +138,4 @@ pub async fn get_frame(State(ctx): State<ServerContext>) -> impl IntoResponse {
         [(header::CONTENT_TYPE, "application/octet-stream")],
         Bytes::from(frame_data),
     )
-}
-
-pub fn get_prefs_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let mut path = std::env::current_exe()?;
-    path.pop();
-    path.push(PREFS_FILENAME);
-    Ok(path)
 }

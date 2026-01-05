@@ -2,9 +2,11 @@
 // See LICENSE file in root directory for license terms.
 
 use embedded_graphics::{
-    pixelcolor::Rgb565,
-    prelude::*,
-    primitives::{Arc as DisplayArc, Line, PrimitiveStyle, Triangle},
+    Drawable,
+    draw_target::DrawTarget,
+    geometry::{AngleUnit, Point},
+    pixelcolor::{Rgb565, RgbColor},
+    primitives::{Arc as DisplayArc, Line, Primitive, PrimitiveStyle, Triangle},
 };
 use std::sync::LazyLock;
 use u8g2_fonts::{

@@ -2,6 +2,7 @@
 // See LICENSE file in root directory for license terms.
 
 mod cedar_client;
+mod prefs;
 mod renderer;
 mod web;
 
@@ -13,10 +14,9 @@ use std::{
     time::Duration,
 };
 
-use axum::{Router, routing::get};
 use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
-use embedded_graphics::prelude::*;
+use embedded_graphics::draw_target::DrawTarget;
 use linux_embedded_hal::Delay;
 use renderer::{BG_COLOR, DrawState, draw_ui};
 use rppal::{
@@ -26,12 +26,7 @@ use rppal::{
 use simple_signal::{self, Signal};
 use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
-use tower_http::services::ServeDir;
-use web::{
-    AppPrefs, Framebuffer, ServerContext, get_brightness, get_frame, get_prefs_path, set_brightness,
-};
-
-const SERVER_ADDRESS: &str = "0.0.0.0:6030";
+use web::{Framebuffer, ServerContext};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -45,49 +40,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => None,
     };
 
-    let prefs_path = get_prefs_path()?;
-    let file_brightness = if let Ok(contents) = std::fs::read_to_string(&prefs_path) {
-        serde_json::from_str::<AppPrefs>(&contents)
-            .ok()
-            .and_then(|p| p.brightness)
-            .unwrap_or(0x80)
-    } else {
-        0x80
-    };
-
+    let file_brightness = prefs::load_brightness();
     let initial_brightness = cli_brightness.unwrap_or(file_brightness);
 
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
     // Initialize shared frame with black pixels (128*128*2 bytes)
     let shared_frame = Arc::new(RwLock::new(vec![0u8; 128 * 128 * 2]));
 
-    let web_path = std::env::current_dir().unwrap_or_default().join("web");
-    if !web_path.exists() {
-        Err(format!(
-            "Web directory not found at: {}",
-            web_path.to_str().unwrap()
-        ))?;
-    }
-
     let server_ctx = ServerContext {
         brightness: shared_brightness.clone(),
         frame: shared_frame.clone(),
     };
 
-    tokio::spawn(async move {
-        let app = Router::new()
-            .route("/api/brightness", get(get_brightness).post(set_brightness))
-            .route("/api/frame", get(get_frame))
-            .nest_service("/", ServeDir::new(web_path))
-            .with_state(server_ctx);
-
-        if let Ok(listener) = tokio::net::TcpListener::bind(SERVER_ADDRESS).await {
-            println!("Web control UI running at http://{}", SERVER_ADDRESS);
-            let _ = axum::serve(listener, app).await;
-        } else {
-            eprintln!("Failed to bind to {}", SERVER_ADDRESS);
-        }
-    });
+    web::start_server(server_ctx)?;
 
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
