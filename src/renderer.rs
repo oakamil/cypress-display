@@ -71,6 +71,7 @@ where
     let is_current = stale_angle.is_some();
     let tilt = state.tilt_target_distance;
     let rot = state.rotation_target_distance;
+    let circle_angle = stale_angle.unwrap_or(0);
 
     GUIDANCE_FONT
         .render_aligned(
@@ -95,7 +96,7 @@ where
         .unwrap();
 
     if !state.is_alt_az {
-        if is_current || (stale_angle.unwrap() % 72 < 36) {
+        if is_current || (circle_angle % 72 < 36) {
             GUIDANCE_FONT
                 .render_aligned(
                     if tilt > 0.0 { "N" } else { "S" },
@@ -147,7 +148,7 @@ where
         DisplayArc::new(
             Point::new(44, 44),
             40,
-            (stale_angle.unwrap() as f32).deg(),
+            (circle_angle as f32).deg(),
             90.0.deg(),
         )
         .into_styled(ARC_STYLE)
