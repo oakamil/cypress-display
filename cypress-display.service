@@ -1,6 +1,8 @@
 [Unit]
 Description=Cypress Display
 Wants=NetworkManager.service network-online.target
+After=multi-user.target
+Requires=multi-user.target
 
 [Service]
 User=cedar

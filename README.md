@@ -76,6 +76,20 @@ Otherwise you can download the file to a computer and use scp to transfer it to 
 scp ~/Downloads/cypress-display.zip cedar@192.168.4.1:.
 ```
 
+### Enabling SPI
+
+SPI must be enabled on the e-finder device.
+
+```Bash
+sudo raspi-config
+```
+
+1. Select `3 Interface Options`
+2. Select `I4 SPI`
+3. Respond `<Yes>` to enable SPI
+4. Continue by selecting `<OK>`
+5. Select `<Finish>` to exit
+
 ### Install Script
 
 The provided distribution archive includes a script to install `cypress-display` as a service to automatically start when the e-finder boots.
