@@ -5,7 +5,7 @@ use embedded_graphics::{
     Drawable,
     draw_target::DrawTarget,
     geometry::{AngleUnit, Point},
-    pixelcolor::{Rgb565, RgbColor},
+    pixelcolor::{Rgb565, RgbColor, WebColors},
     primitives::{Arc as DisplayArc, Line, Primitive, PrimitiveStyle, Triangle},
 };
 use std::sync::LazyLock;
@@ -24,6 +24,7 @@ static GUIDANCE_FONT: LazyLock<FontRenderer> =
 
 pub const FG_COLOR: Rgb565 = Rgb565::RED;
 pub const BG_COLOR: Rgb565 = Rgb565::BLACK;
+pub const STALE_COLOR: Rgb565 = Rgb565::CSS_MAROON;
 
 const TRIANGLE_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_fill(FG_COLOR);
 const TRIANGLE_STALE_STYLE: PrimitiveStyle<Rgb565> = PrimitiveStyle::with_stroke(FG_COLOR, 1);
@@ -71,7 +72,6 @@ where
     let is_current = stale_angle.is_none();
     let tilt = state.tilt_target_distance;
     let rot = state.rotation_target_distance;
-    let circle_angle = stale_angle.unwrap_or(0);
 
     GUIDANCE_FONT
         .render_aligned(
@@ -96,29 +96,28 @@ where
         .unwrap();
 
     if !state.is_alt_az {
-        if is_current || (circle_angle % 72 < 36) {
-            GUIDANCE_FONT
-                .render_aligned(
-                    if tilt > 0.0 { "N" } else { "S" },
-                    Point::new(0, 0),
-                    VerticalPosition::Top,
-                    HorizontalAlignment::Left,
-                    FontColor::Transparent(FG_COLOR),
-                    disp,
-                )
-                .unwrap();
+        let color = if is_current { FG_COLOR } else { STALE_COLOR };
+        GUIDANCE_FONT
+            .render_aligned(
+                if tilt > 0.0 { "N" } else { "S" },
+                Point::new(0, 0),
+                VerticalPosition::Top,
+                HorizontalAlignment::Left,
+                FontColor::Transparent(color),
+                disp,
+            )
+            .unwrap();
 
-            GUIDANCE_FONT
-                .render_aligned(
-                    if rot > 0.0 { "E" } else { "W" },
-                    Point::new(0, 127),
-                    VerticalPosition::Baseline,
-                    HorizontalAlignment::Left,
-                    FontColor::Transparent(FG_COLOR),
-                    disp,
-                )
-                .unwrap();
-        }
+        GUIDANCE_FONT
+            .render_aligned(
+                if rot > 0.0 { "E" } else { "W" },
+                Point::new(0, 127),
+                VerticalPosition::Baseline,
+                HorizontalAlignment::Left,
+                FontColor::Transparent(color),
+                disp,
+            )
+            .unwrap();
     } else {
         let tri_style = if is_current {
             TRIANGLE_STYLE
@@ -148,7 +147,7 @@ where
         DisplayArc::new(
             Point::new(44, 44),
             40,
-            (circle_angle as f32).deg(),
+            (stale_angle.unwrap() as f32).deg(),
             90.0.deg(),
         )
         .into_styled(ARC_STYLE)
