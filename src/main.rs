@@ -18,7 +18,7 @@ use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
 use embedded_graphics::draw_target::DrawTarget;
 use linux_embedded_hal::Delay;
-use renderer::{BG_COLOR, DrawState, draw_ui};
+use renderer::{BG_COLOR, DrawState, Rotation, RotatedDisplay, draw_ui};
 use rppal::{
     gpio::Gpio,
     spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
@@ -38,6 +38,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(val) if (1..=255).contains(&val) => Some(val as u8),
         Some(_) => return Err("Brightness must be between 1 and 255".into()),
         None => None,
+    };
+
+    let cli_rotation = match args.opt_value_from_str::<_, u32>("--rotation")? {
+        Some(val) if val == 0 => Some(Rotation::Deg0),
+        Some(val) if val == 0 => Some(Rotation::Deg90),
+        Some(val) if val == 0 => Some(Rotation::Deg180),
+        Some(val) if val == 0 => Some(Rotation::Deg270),
+        Some(_) => return Err("Rotation must be one of 0, 90, 180, or 270".into()),
+        None => Some(Rotation::Deg0),
     };
 
     let file_brightness = prefs::load_brightness();
@@ -124,8 +133,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         // Draw to physical display
-        disp.clear(BG_COLOR).unwrap();
-        draw_ui(&mut disp, &draw_state);
+        {
+            let mut rotated_disp = RotatedDisplay::new(&mut disp, cli_rotation.unwrap());
+            rotated_disp.clear(BG_COLOR).unwrap();
+            draw_ui(&mut rotated_disp, &draw_state);
+        }
         let _ = disp.flush();
 
         // Draw to virtual framebuffer
