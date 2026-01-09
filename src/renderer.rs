@@ -2,9 +2,9 @@
 // See LICENSE file in root directory for license terms.
 
 use embedded_graphics::{
-    Drawable,
+    Drawable, Pixel,
     draw_target::DrawTarget,
-    geometry::{AngleUnit, Point},
+    geometry::{AngleUnit, OriginDimensions, Point, Size},
     pixelcolor::{Rgb565, RgbColor, WebColors},
     primitives::{Arc as DisplayArc, Line, Primitive, PrimitiveStyle, Triangle},
 };
@@ -37,6 +37,85 @@ pub enum DrawState<'a> {
     Message(String),
     // State, stale_angle
     Operating(&'a ServerState, Option<u32>),
+}
+
+// Rotation is clockwise
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Rotation {
+    Deg0,
+    Deg90,
+    Deg180,
+    Deg270,
+}
+
+impl Rotation {
+    pub fn from_degrees(deg: u16) -> Self {
+        match deg {
+            90 => Rotation::Deg90,
+            180 => Rotation::Deg180,
+            270 => Rotation::Deg270,
+            _ => Rotation::Deg0,
+        }
+    }
+}
+
+// Allows for software rotation of the display
+pub struct RotatedDisplay<D> {
+    pub parent: D,
+    rotation: Rotation,
+}
+
+impl<D> RotatedDisplay<D> {
+    pub fn new(parent: D, rotation: Rotation) -> Self {
+        Self { parent, rotation }
+    }
+
+    pub fn set_rotation(&mut self, rotation: Rotation) {
+        self.rotation = rotation;
+    }
+}
+
+impl<D> OriginDimensions for RotatedDisplay<D>
+where
+    D: OriginDimensions,
+{
+    fn size(&self) -> Size {
+        let size = self.parent.size();
+        match self.rotation {
+            Rotation::Deg0 | Rotation::Deg180 => size,
+            // Since we only support 128x128 displays at the moment this isn't strictly necessary
+            Rotation::Deg90 | Rotation::Deg270 => Size::new(size.height, size.width),
+        }
+    }
+}
+
+impl<D> DrawTarget for RotatedDisplay<D>
+where
+    D: DrawTarget + OriginDimensions,
+{
+    type Color = D::Color;
+    type Error = D::Error;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        let size = self.parent.size();
+        let max_x = size.width as i32 - 1;
+        let max_y = size.height as i32 - 1;
+
+        let rotated_pixels = pixels.into_iter().map(|Pixel(pt, color)| {
+            let rotated_point = match self.rotation {
+                Rotation::Deg0 => pt,
+                Rotation::Deg90 => Point::new(max_x - pt.y, pt.x),
+                Rotation::Deg180 => Point::new(max_x - pt.x, max_y - pt.y),
+                Rotation::Deg270 => Point::new(pt.y, max_y - pt.x),
+            };
+            Pixel(rotated_point, color)
+        });
+
+        self.parent.draw_iter(rotated_pixels)
+    }
 }
 
 // Draw the UI to any target display

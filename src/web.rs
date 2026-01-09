@@ -1,14 +1,14 @@
 // Copyright (c) 2025 Omair Kamil
 // See LICENSE file in root directory for license terms.
 
-use crate::prefs::{AppPrefs, save_brightness};
+use crate::prefs::{AppPrefs, save_brightness, save_rotation};
 use axum::{
     Router,
     body::Bytes,
     extract::{Json, State},
     http::{StatusCode, header},
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
 };
 use embedded_graphics::{
     pixelcolor::Rgb565,
@@ -16,7 +16,7 @@ use embedded_graphics::{
 };
 use std::sync::{
     Arc, RwLock,
-    atomic::{AtomicU8, Ordering},
+    atomic::{AtomicU8, AtomicU16, Ordering},
 };
 use tower_http::services::ServeDir;
 
@@ -25,6 +25,7 @@ const SERVER_ADDRESS: &str = "0.0.0.0:6030";
 #[derive(Clone)]
 pub struct ServerContext {
     pub brightness: Arc<AtomicU8>,
+    pub rotation: Arc<AtomicU16>,
     // Shared buffer for the latest frame (raw RGB565 bytes)
     pub frame: Arc<RwLock<Vec<u8>>>,
 }
@@ -91,6 +92,7 @@ pub fn start_server(ctx: ServerContext) -> Result<(), Box<dyn std::error::Error>
     tokio::spawn(async move {
         let app = Router::new()
             .route("/api/brightness", get(get_brightness).post(set_brightness))
+            .route("/api/rotate", post(api_rotate))
             .route("/api/frame", get(get_frame))
             .nest_service("/", ServeDir::new(web_path))
             .with_state(ctx);
@@ -110,6 +112,7 @@ async fn get_brightness(State(ctx): State<ServerContext>) -> Json<AppPrefs> {
     let b = ctx.brightness.load(Ordering::Relaxed);
     Json(AppPrefs {
         brightness: Some(b),
+        rotation: Some(ctx.rotation.load(Ordering::Relaxed)),
     })
 }
 
@@ -121,6 +124,14 @@ async fn set_brightness(
         ctx.brightness.store(b, Ordering::Relaxed);
         save_brightness(b);
     }
+    StatusCode::OK
+}
+
+async fn api_rotate(State(ctx): State<ServerContext>) -> StatusCode {
+    let current = ctx.rotation.load(Ordering::Relaxed);
+    let next = (current + 90) % 360;
+    ctx.rotation.store(next, Ordering::Relaxed);
+    save_rotation(next);
     StatusCode::OK
 }
 

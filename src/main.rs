@@ -9,7 +9,7 @@ mod web;
 use std::{
     sync::{
         Arc, RwLock,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicU8, AtomicU16, Ordering},
     },
     time::Duration,
 };
@@ -18,7 +18,7 @@ use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
 use embedded_graphics::draw_target::DrawTarget;
 use linux_embedded_hal::Delay;
-use renderer::{BG_COLOR, DrawState, draw_ui};
+use renderer::{BG_COLOR, DrawState, RotatedDisplay, Rotation, draw_ui};
 use rppal::{
     gpio::Gpio,
     spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
@@ -40,15 +40,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => None,
     };
 
+    let cli_rotation = match args.opt_value_from_str::<_, u16>("--rotation")? {
+        Some(val) if val == 0 || val == 90 || val == 180 || val == 270 => Some(val),
+        Some(_) => return Err("Rotation must be one of 0, 90, 180, or 270".into()),
+        None => None,
+    };
+
     let file_brightness = prefs::load_brightness();
     let initial_brightness = cli_brightness.unwrap_or(file_brightness);
 
+    let file_rotation = prefs::load_rotation();
+    let initial_rotation = cli_rotation.unwrap_or(file_rotation);
+    let mut current_rotation = Rotation::from_degrees(initial_rotation);
+
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
+    let shared_rotation = Arc::new(AtomicU16::new(initial_rotation));
+
     // Initialize shared frame with black pixels (128*128*2 bytes)
     let shared_frame = Arc::new(RwLock::new(vec![0u8; 128 * 128 * 2]));
 
     let server_ctx = ServerContext {
         brightness: shared_brightness.clone(),
+        rotation: shared_rotation.clone(),
         frame: shared_frame.clone(),
     };
 
@@ -67,13 +80,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rst = gpio.get(27)?.into_output();
 
     let spii = SPIInterface::new(SimpleHalSpiDevice::new(spi), dc);
-    let mut disp = Ssd1351::new(spii);
+    let raw_disp = Ssd1351::new(spii);
+    let mut disp = RotatedDisplay::new(raw_disp, current_rotation);
 
-    disp.reset(&mut rst, &mut Delay).unwrap();
-    disp.turn_on().unwrap();
+    disp.parent.reset(&mut rst, &mut Delay).unwrap();
+    disp.parent.turn_on().unwrap();
 
     let mut current_brightness = initial_brightness;
-    disp.set_brightness(current_brightness).unwrap();
+    disp.parent.set_brightness(current_brightness).unwrap();
 
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
@@ -90,8 +104,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let target_brightness = shared_brightness.load(Ordering::Relaxed);
         if target_brightness != current_brightness {
             println!("Updating display brightness to {}", target_brightness);
-            disp.set_brightness(target_brightness).unwrap();
+            disp.parent.set_brightness(target_brightness).unwrap();
             current_brightness = target_brightness;
+        }
+
+        let target_rotation_deg = shared_rotation.load(Ordering::Relaxed);
+        let target_rotation = Rotation::from_degrees(target_rotation_deg);
+        if target_rotation != current_rotation {
+            println!("Updating display rotation to {}", target_rotation_deg);
+            disp.set_rotation(target_rotation);
+            current_rotation = target_rotation;
         }
 
         let resp = client.get_state().await;
@@ -126,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Draw to physical display
         disp.clear(BG_COLOR).unwrap();
         draw_ui(&mut disp, &draw_state);
-        let _ = disp.flush();
+        let _ = disp.parent.flush();
 
         // Draw to virtual framebuffer
         if mirror_enabled {
@@ -143,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_millis(50)).await;
     }
 
-    disp.reset(&mut rst, &mut Delay).unwrap();
-    disp.turn_off().unwrap();
+    disp.parent.reset(&mut rst, &mut Delay).unwrap();
+    disp.parent.turn_off().unwrap();
     Ok(())
 }
