@@ -49,7 +49,7 @@ cd out/cypress/bin
 
 The brightness and rotation can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
 
-<img width="575" height="409" alt="cypress-display" src="https://github.com/user-attachments/assets/cfaa94f2-fa01-4663-88f6-4cc9952af6e1" />
+<img width="209" height="195" alt="cypress-control" src="https://github.com/user-attachments/assets/62f27993-ff80-49a5-b918-38d10ef4caed" />
 
 ### Display Mirror
 
