@@ -41,12 +41,13 @@ The display driver daemon. It connects to the hardware display and queries Cedar
 cd out/cypress/bin
 ./cypress-display --brightness 128
 ```
-* `--brightness`: (Optional) Set display brightness (1-255). Default is 128 (50%).
+* `--brightness`: (Optional) Set physical display brightness (1-255). Default is 128 (50%).
+* `--rotate`: (Optional) Set physical display clockwise rotation (0, 90, 180, or 270). Default is 0.
 * `--mirror`: (Optional) Mirror the physical display to the web UI.
 
-### Brightness Update
+### Brightness and Rotation Control
 
-The brightness can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
+The brightness and rotation can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
 
 <img width="575" height="409" alt="cypress-display" src="https://github.com/user-attachments/assets/cfaa94f2-fa01-4663-88f6-4cc9952af6e1" />
 
