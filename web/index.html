@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cypress Display</title>
+    <link href="icons.css" rel="stylesheet">
     <style>
         body {
             background-color: #000000;
@@ -36,8 +37,8 @@
             padding-bottom: 0.5rem;
         }
 
-        .control-group {
-            margin-bottom: 2rem;
+        .spacer {
+            padding-bottom: 2rem;
         }
 
         label {
@@ -83,22 +84,56 @@
             font-weight: bold;
         }
 
+        /* New button styling */
+        .icon-btn {
+            background: transparent;
+            border: 2px solid #333;
+            border-radius: 50%;
+            color: #FF0000;
+            cursor: pointer;
+            padding: 10px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-btn:hover {
+            border-color: #FF0000;
+            background-color: rgba(255, 0, 0, 0.1);
+            transform: rotate(90deg);
+        }
+
+        .material-icons {
+            font-size: 36px;
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Cypress Display</h1>
         
-        <div class="control-group">
+        <div>
             <label for="brightness">Screen Brightness</label>
             <input type="range" id="brightness" min="1" max="255">
             <div class="value-display" id="valDisplay">...</div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div>
+            <label>Rotate Display</label>
+            <button id="rotateBtn" class="icon-btn" title="Rotate 90° Clockwise">
+                <span class="material-icons">rotate_right</span>
+            </button>
         </div>
     </div>
 
     <script>
         const slider = document.getElementById('brightness');
         const valDisplay = document.getElementById('valDisplay');
+        const rotateBtn = document.getElementById('rotateBtn');
 
         function updateSliderVisuals(val) {
             const min = parseInt(slider.min) || 0;
@@ -128,6 +163,12 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ brightness: val })
             }).catch(err => console.error('Error setting brightness:', err));
+        });
+
+        rotateBtn.addEventListener('click', () => {
+            fetch('/api/rotate', {
+                method: 'POST'
+            }).catch(err => console.error('Error rotating display:', err));
         });
     </script>
 </body>

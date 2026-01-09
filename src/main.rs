@@ -9,7 +9,7 @@ mod web;
 use std::{
     sync::{
         Arc, RwLock,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicU8, AtomicU16, Ordering},
     },
     time::Duration,
 };
@@ -40,24 +40,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => None,
     };
 
-    let cli_rotation = match args.opt_value_from_str::<_, u32>("--rotation")? {
-        Some(val) if val == 0 => Rotation::Deg0,
-        Some(val) if val == 0 => Rotation::Deg90,
-        Some(val) if val == 0 => Rotation::Deg180,
-        Some(val) if val == 0 => Rotation::Deg270,
+    let cli_rotation = match args.opt_value_from_str::<_, u16>("--rotation")? {
+        Some(val) if val == 0 || val == 90 || val == 180 || val == 270 => Some(val),
         Some(_) => return Err("Rotation must be one of 0, 90, 180, or 270".into()),
-        None => Rotation::Deg0,
+        None => None,
     };
 
     let file_brightness = prefs::load_brightness();
     let initial_brightness = cli_brightness.unwrap_or(file_brightness);
 
+    let file_rotation = prefs::load_rotation();
+    let initial_rotation = cli_rotation.unwrap_or(file_rotation);
+    let mut current_rotation = Rotation::from_degrees(initial_rotation);
+
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
+    let shared_rotation = Arc::new(AtomicU16::new(initial_rotation));
+
     // Initialize shared frame with black pixels (128*128*2 bytes)
     let shared_frame = Arc::new(RwLock::new(vec![0u8; 128 * 128 * 2]));
 
     let server_ctx = ServerContext {
         brightness: shared_brightness.clone(),
+        rotation: shared_rotation.clone(),
         frame: shared_frame.clone(),
     };
 
@@ -77,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let spii = SPIInterface::new(SimpleHalSpiDevice::new(spi), dc);
     let raw_disp = Ssd1351::new(spii);
-    let mut disp = RotatedDisplay::new(raw_disp, cli_rotation);
+    let mut disp = RotatedDisplay::new(raw_disp, current_rotation);
 
     disp.parent.reset(&mut rst, &mut Delay).unwrap();
     disp.parent.turn_on().unwrap();
@@ -102,6 +106,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Updating display brightness to {}", target_brightness);
             disp.parent.set_brightness(target_brightness).unwrap();
             current_brightness = target_brightness;
+        }
+
+        let target_rotation_deg = shared_rotation.load(Ordering::Relaxed);
+        let target_rotation = Rotation::from_degrees(target_rotation_deg);
+        if target_rotation != current_rotation {
+            println!("Updating display rotation to {}", target_rotation_deg);
+            disp.set_rotation(target_rotation);
+            current_rotation = target_rotation;
         }
 
         let resp = client.get_state().await;

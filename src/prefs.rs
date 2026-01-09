@@ -9,6 +9,7 @@ const PREFS_FILENAME: &str = "cb_prefs.json";
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AppPrefs {
     pub brightness: Option<u8>,
+    pub rotation: Option<u16>,
 }
 
 pub fn get_prefs_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -18,25 +19,39 @@ pub fn get_prefs_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(path)
 }
 
-pub fn load_brightness() -> u8 {
+fn load_prefs() -> AppPrefs {
     if let Ok(path) = get_prefs_path() {
         if let Ok(contents) = std::fs::read_to_string(path) {
-            return serde_json::from_str::<AppPrefs>(&contents)
-                .ok()
-                .and_then(|p| p.brightness)
-                .unwrap_or(0x80);
+            return serde_json::from_str::<AppPrefs>(&contents).unwrap_or_default();
         }
     }
-    0x80
+    AppPrefs::default()
 }
 
-pub fn save_brightness(brightness: u8) {
+fn save_prefs(prefs: &AppPrefs) {
     if let Ok(path) = get_prefs_path() {
-        let prefs = AppPrefs {
-            brightness: Some(brightness),
-        };
-        if let Ok(data) = serde_json::to_string_pretty(&prefs) {
+        if let Ok(data) = serde_json::to_string_pretty(prefs) {
             let _ = std::fs::write(path, data);
         }
     }
+}
+
+pub fn load_brightness() -> u8 {
+    load_prefs().brightness.unwrap_or(0x80)
+}
+
+pub fn save_brightness(brightness: u8) {
+    let mut prefs = load_prefs();
+    prefs.brightness = Some(brightness);
+    save_prefs(&prefs);
+}
+
+pub fn load_rotation() -> u16 {
+    load_prefs().rotation.unwrap_or(0)
+}
+
+pub fn save_rotation(rotation: u16) {
+    let mut prefs = load_prefs();
+    prefs.rotation = Some(rotation);
+    save_prefs(&prefs);
 }

@@ -40,12 +40,23 @@ pub enum DrawState<'a> {
 }
 
 // Rotation is clockwise
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Rotation {
     Deg0,
     Deg90,
     Deg180,
     Deg270,
+}
+
+impl Rotation {
+    pub fn from_degrees(deg: u16) -> Self {
+        match deg {
+            90 => Rotation::Deg90,
+            180 => Rotation::Deg180,
+            270 => Rotation::Deg270,
+            _ => Rotation::Deg0,
+        }
+    }
 }
 
 // Allows for software rotation of the display
@@ -57,6 +68,10 @@ pub struct RotatedDisplay<D> {
 impl<D> RotatedDisplay<D> {
     pub fn new(parent: D, rotation: Rotation) -> Self {
         Self { parent, rotation }
+    }
+
+    pub fn set_rotation(&mut self, rotation: Rotation) {
+        self.rotation = rotation;
     }
 }
 
