@@ -18,7 +18,7 @@ use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
 use embedded_graphics::draw_target::DrawTarget;
 use linux_embedded_hal::Delay;
-use renderer::{BG_COLOR, DrawState, Rotation, RotatedDisplay, draw_ui};
+use renderer::{BG_COLOR, DrawState, RotatedDisplay, Rotation, draw_ui};
 use rppal::{
     gpio::Gpio,
     spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
@@ -41,12 +41,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let cli_rotation = match args.opt_value_from_str::<_, u32>("--rotation")? {
-        Some(val) if val == 0 => Some(Rotation::Deg0),
-        Some(val) if val == 0 => Some(Rotation::Deg90),
-        Some(val) if val == 0 => Some(Rotation::Deg180),
-        Some(val) if val == 0 => Some(Rotation::Deg270),
+        Some(val) if val == 0 => Rotation::Deg0,
+        Some(val) if val == 0 => Rotation::Deg90,
+        Some(val) if val == 0 => Rotation::Deg180,
+        Some(val) if val == 0 => Rotation::Deg270,
         Some(_) => return Err("Rotation must be one of 0, 90, 180, or 270".into()),
-        None => Some(Rotation::Deg0),
+        None => Rotation::Deg0,
     };
 
     let file_brightness = prefs::load_brightness();
@@ -76,13 +76,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rst = gpio.get(27)?.into_output();
 
     let spii = SPIInterface::new(SimpleHalSpiDevice::new(spi), dc);
-    let mut disp = Ssd1351::new(spii);
+    let raw_disp = Ssd1351::new(spii);
+    let mut disp = RotatedDisplay::new(raw_disp, cli_rotation);
 
-    disp.reset(&mut rst, &mut Delay).unwrap();
-    disp.turn_on().unwrap();
+    disp.parent.reset(&mut rst, &mut Delay).unwrap();
+    disp.parent.turn_on().unwrap();
 
     let mut current_brightness = initial_brightness;
-    disp.set_brightness(current_brightness).unwrap();
+    disp.parent.set_brightness(current_brightness).unwrap();
 
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
@@ -99,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let target_brightness = shared_brightness.load(Ordering::Relaxed);
         if target_brightness != current_brightness {
             println!("Updating display brightness to {}", target_brightness);
-            disp.set_brightness(target_brightness).unwrap();
+            disp.parent.set_brightness(target_brightness).unwrap();
             current_brightness = target_brightness;
         }
 
@@ -133,12 +134,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         // Draw to physical display
-        {
-            let mut rotated_disp = RotatedDisplay::new(&mut disp, cli_rotation.unwrap());
-            rotated_disp.clear(BG_COLOR).unwrap();
-            draw_ui(&mut rotated_disp, &draw_state);
-        }
-        let _ = disp.flush();
+        disp.clear(BG_COLOR).unwrap();
+        draw_ui(&mut disp, &draw_state);
+        let _ = disp.parent.flush();
 
         // Draw to virtual framebuffer
         if mirror_enabled {
@@ -155,7 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_millis(50)).await;
     }
 
-    disp.reset(&mut rst, &mut Delay).unwrap();
-    disp.turn_off().unwrap();
+    disp.parent.reset(&mut rst, &mut Delay).unwrap();
+    disp.parent.turn_off().unwrap();
     Ok(())
 }

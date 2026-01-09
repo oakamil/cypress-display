@@ -2,8 +2,7 @@
 // See LICENSE file in root directory for license terms.
 
 use embedded_graphics::{
-    Drawable,
-    Pixel,
+    Drawable, Pixel,
     draw_target::DrawTarget,
     geometry::{AngleUnit, OriginDimensions, Point, Size},
     pixelcolor::{Rgb565, RgbColor, WebColors},
@@ -50,18 +49,18 @@ pub enum Rotation {
 }
 
 // Allows for software rotation of the display
-pub struct RotatedDisplay<'a, D> {
-    parent: &'a mut D,
+pub struct RotatedDisplay<D> {
+    pub parent: D,
     rotation: Rotation,
 }
 
-impl<'a, D> RotatedDisplay<'a, D> {
-    pub fn new(parent: &'a mut D, rotation: Rotation) -> Self {
+impl<D> RotatedDisplay<D> {
+    pub fn new(parent: D, rotation: Rotation) -> Self {
         Self { parent, rotation }
     }
 }
 
-impl<'a, D> OriginDimensions for RotatedDisplay<'a, D>
+impl<D> OriginDimensions for RotatedDisplay<D>
 where
     D: OriginDimensions,
 {
@@ -75,7 +74,7 @@ where
     }
 }
 
-impl<'a, D> DrawTarget for RotatedDisplay<'a, D>
+impl<D> DrawTarget for RotatedDisplay<D>
 where
     D: DrawTarget + OriginDimensions,
 {
