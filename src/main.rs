@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 
-use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
+use cedar_client::{CedarClient, CedarResponse, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
 use linux_embedded_hal::Delay;
 use renderer::{DrawState, RotatedDisplay, Rotation, draw_ui};
@@ -27,11 +27,61 @@ use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
 use web::{Framebuffer, ServerContext};
 
+struct FakeStateProvider {
+    tilt: f64,
+    rot: f64,
+    angle: f64,
+    has_solution: bool,
+    is_alt_az: bool,
+}
+
+impl FakeStateProvider {
+    fn new() -> Self {
+        FakeStateProvider {
+            tilt: 123.8,
+            rot: -45.3,
+            angle: 0.0,
+            has_solution: true,
+            is_alt_az: true,
+        }
+    }
+
+    fn get_next_response(&mut self) -> CedarResponse {
+        self.angle = (self.angle + 9.0) % 360.0;
+        let delta = if self.has_solution { 1.0 } else { 10.0 };
+        self.tilt = self.tilt + delta;
+        if self.tilt > 180.0 {
+            self.tilt = -179.2;
+        }
+        self.rot = self.rot - delta;
+        if self.rot < -180.0 {
+            self.rot = 179.7;
+            if !self.has_solution {
+                self.is_alt_az = !self.is_alt_az;
+            }
+            self.has_solution = !self.has_solution;
+        }
+        CedarResponse {
+            status: ResponseStatus::Success,
+            server_state: Some(ServerState {
+                server_mode: ServerMode::Operating,
+                is_alt_az: self.is_alt_az,
+                has_slew_request: self.has_solution,
+                rotation_target_distance: self.rot,
+                tilt_target_distance: self.tilt,
+                target_angle: self.angle,
+                has_solution: self.has_solution,
+            }),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = pico_args::Arguments::from_env();
 
     let mirror_enabled = args.contains("--mirror");
+    let test_mode = args.contains("--test");
 
     let cli_brightness = match args.opt_value_from_str::<_, u32>("--brightness")? {
         Some(val) if (1..=255).contains(&val) => Some(val as u8),
@@ -90,7 +140,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
-        Some(RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation))
+        Some(RotatedDisplay::new_rgb_128_128(
+            Framebuffer::new(),
+            current_rotation,
+        ))
     } else {
         None
     };
@@ -98,6 +151,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = CedarClient::new();
     let mut last_slew: Option<ServerState> = None;
     let mut stale_angle = 0;
+
+    let mut fake_provider = FakeStateProvider::new();
 
     while running.load(Ordering::SeqCst) {
         let target_brightness = shared_brightness.load(Ordering::Relaxed);
@@ -118,7 +173,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             current_rotation = target_rotation;
         }
 
-        let resp = client.get_state().await;
+        let resp = if test_mode {
+            fake_provider.get_next_response()
+        } else {
+            client.get_state().await
+        };
         let draw_state = if resp.status != ResponseStatus::Success {
             DrawState::Message(format!("{:?}", resp.status))
         } else if let Some(state) = &resp.server_state {

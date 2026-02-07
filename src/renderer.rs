@@ -2,16 +2,15 @@
 // See LICENSE file in root directory for license terms.
 
 use embedded_graphics::{
+    Drawable, Pixel,
     draw_target::DrawTarget,
     geometry::{AngleUnit, OriginDimensions, Point, Size},
     pixelcolor::{BinaryColor, PixelColor, Rgb565, RgbColor, WebColors},
     primitives::{Arc as DisplayArc, Line, Primitive, PrimitiveStyle, Triangle},
-    Drawable, Pixel,
 };
 use u8g2_fonts::{
-    fonts,
+    FontRenderer, fonts,
     types::{FontColor, HorizontalAlignment, VerticalPosition},
-    FontRenderer,
 };
 
 use crate::cedar_client::ServerState;
@@ -53,7 +52,7 @@ struct TextPosition {
 
 #[derive(Clone)]
 // Stores positioning for an orientation
-struct PositionConfiguration {
+struct RenderingConfiguration {
     // Direction triangles
     up_triangle: Triangle,
     down_triangle: Triangle,
@@ -91,9 +90,10 @@ pub struct RotatedDisplay<D, C: PixelColor> {
     arrowhead_style: PrimitiveStyle<C>,
     arc_style: PrimitiveStyle<C>,
 
-    default_positions: PositionConfiguration,
-    rotated_positions: PositionConfiguration,
+    default_rendering: RenderingConfiguration,
+    rotated_rendering: RenderingConfiguration,
     rotate_status: bool,
+    high_precision: bool,
 }
 
 impl<D> RotatedDisplay<D, Rgb565>
@@ -102,10 +102,23 @@ where
     D::Error: std::fmt::Debug,
 {
     pub fn new_rgb_128_128(parent: D, rotation: Rotation) -> Self {
-        let fg = Rgb565::RED;
-        let bg = Rgb565::BLACK;
-        let stale = Rgb565::CSS_MAROON;
-        RotatedDisplay::new_128_128(parent, rotation, fg, bg, stale)
+        RotatedDisplay::new_128_128(
+            parent,
+            rotation,
+            Rgb565::RED,
+            Rgb565::BLACK,
+            Rgb565::CSS_MAROON,
+        )
+    }
+
+    pub fn new_rgb_128_32(parent: D, rotation: Rotation) -> Self {
+        RotatedDisplay::new_128_32(
+            parent,
+            rotation,
+            Rgb565::RED,
+            Rgb565::BLACK,
+            Rgb565::CSS_MAROON,
+        )
     }
 }
 
@@ -115,9 +128,13 @@ where
     D::Error: std::fmt::Debug,
 {
     pub fn new_binary_128_32(parent: D, rotation: Rotation) -> Self {
-        let fg = BinaryColor::On;
-        let bg = BinaryColor::Off;
-        RotatedDisplay::new_128_32(parent, rotation, fg, bg, fg)
+        RotatedDisplay::new_128_32(
+            parent,
+            rotation,
+            BinaryColor::On,
+            BinaryColor::Off,
+            BinaryColor::On,
+        )
     }
 }
 
@@ -133,7 +150,7 @@ where
         bg_color: C,
         stale_color: C,
     ) -> Self {
-        let positions = PositionConfiguration {
+        let positions = RenderingConfiguration {
             up_triangle: Triangle::new(Point::new(15, 0), Point::new(0, 30), Point::new(30, 30)),
             down_triangle: Triangle::new(Point::new(0, 0), Point::new(30, 0), Point::new(15, 30)),
             right_triangle: Triangle::new(
@@ -148,7 +165,7 @@ where
             ),
             guidance_center: Point::new(64, 64),
             arc_radius: 20,
-            arrow_length: 20.0,
+            arrow_length: 40.0,
             arrowhead_size: 12.0,
             status_position: TextPosition {
                 start: Point::new(64, 64),
@@ -190,20 +207,15 @@ where
             arrow_shaft_style: PrimitiveStyle::with_stroke(fg_color, 3),
             arrowhead_style: PrimitiveStyle::with_fill(fg_color),
             arc_style: PrimitiveStyle::with_stroke(fg_color, 3),
-            default_positions: positions.clone(),
-            rotated_positions: positions,
+            default_rendering: positions.clone(),
+            rotated_rendering: positions,
             rotate_status: true,
+            high_precision: true,
         }
     }
 
-    fn new_128_32(
-        parent: D,
-        rotation: Rotation,
-        fg_color: C,
-        bg_color: C,
-        stale_color: C,
-    ) -> Self {
-        let default_positions = PositionConfiguration {
+    fn new_128_32(parent: D, rotation: Rotation, fg_color: C, bg_color: C, stale_color: C) -> Self {
+        let default_rendering = RenderingConfiguration {
             up_triangle: Triangle::new(Point::new(6, 10), Point::new(0, 22), Point::new(12, 22)),
             down_triangle: Triangle::new(Point::new(0, 10), Point::new(12, 10), Point::new(6, 22)),
             right_triangle: Triangle::new(
@@ -246,7 +258,7 @@ where
                 horizontal: HorizontalAlignment::Right,
             },
         };
-        let rotated_positions = PositionConfiguration {
+        let rotated_rendering = RenderingConfiguration {
             up_triangle: Triangle::new(Point::new(16, 2), Point::new(10, 14), Point::new(22, 14)),
             down_triangle: Triangle::new(Point::new(10, 2), Point::new(22, 2), Point::new(16, 14)),
             right_triangle: Triangle::new(
@@ -270,12 +282,12 @@ where
             },
             tilt_position: TextPosition {
                 start: Point::new(16, 24),
-                vertical: VerticalPosition::Baseline,
+                vertical: VerticalPosition::Top,
                 horizontal: HorizontalAlignment::Center,
             },
             rot_position: TextPosition {
                 start: Point::new(16, 103),
-                vertical: VerticalPosition::Top,
+                vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Center,
             },
             dec_label_position: TextPosition {
@@ -302,9 +314,10 @@ where
             arrow_shaft_style: PrimitiveStyle::with_stroke(fg_color, 3),
             arrowhead_style: PrimitiveStyle::with_fill(fg_color),
             arc_style: PrimitiveStyle::with_stroke(fg_color, 3),
-            default_positions,
-            rotated_positions,
+            default_rendering,
+            rotated_rendering,
             rotate_status: false,
+            high_precision: false,
         }
     }
 
@@ -392,9 +405,9 @@ where
             };
 
             let positions = if is_rotated {
-                &display.rotated_positions
+                &display.rotated_rendering
             } else {
-                &display.default_positions
+                &display.default_rendering
             };
 
             display
@@ -436,15 +449,16 @@ fn draw_operating_state<D, C>(
     };
 
     let positions = if is_rotated {
-        &display.rotated_positions
+        &display.rotated_rendering
     } else {
-        &display.default_positions
+        &display.default_rendering
     };
+    let high_precision = display.high_precision;
 
     display
         .guidance_font
         .render_aligned(
-            format_offset(tilt).as_str(),
+            format_offset(tilt, high_precision).as_str(),
             positions.tilt_position.start,
             positions.tilt_position.vertical,
             positions.tilt_position.horizontal,
@@ -456,7 +470,7 @@ fn draw_operating_state<D, C>(
     display
         .guidance_font
         .render_aligned(
-            format_offset(rot).as_str(),
+            format_offset(rot, high_precision).as_str(),
             positions.rot_position.start,
             positions.rot_position.vertical,
             positions.rot_position.horizontal,
@@ -583,13 +597,13 @@ fn draw_operating_state<D, C>(
         .unwrap();
 }
 
-fn format_offset(num: f64) -> String {
+fn format_offset(num: f64, high_precision: bool) -> String {
     let n = num.abs();
-    if n >= 100.0 {
+    if n >= 100.0 || (!high_precision && n >= 10.0) {
         format!("{:.0}", n)
-    } else if n >= 10.0 {
-        format!("{:.1}", n)
-    } else {
+    } else if high_precision && n < 10.0 {
         format!("{:.2}", n)
+    } else {
+        format!("{:.1}", n)
     }
 }
