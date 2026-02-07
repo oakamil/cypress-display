@@ -44,29 +44,16 @@ impl Rotation {
 }
 
 // Configuration for text position
+#[derive(Clone)]
 struct TextPosition {
     start: Point,
     vertical: VerticalPosition,
     horizontal: HorizontalAlignment,
 }
 
-// Stores configuration for a particular display
-pub struct RotatedDisplay<D, C: PixelColor> {
-    pub parent: D,
-    rotation: Rotation,
-
-    // Fonts and styles
-    status_font: FontRenderer,
-    guidance_font: FontRenderer,
-    fg_color: C,
-    bg_color: C,
-    stale_color: C,
-    triangle_style: PrimitiveStyle<C>,
-    triangle_stale_style: PrimitiveStyle<C>,
-    arrow_shaft_style: PrimitiveStyle<C>,
-    arrowhead_style: PrimitiveStyle<C>,
-    arc_style: PrimitiveStyle<C>,
-
+#[derive(Clone)]
+// Stores positioning for an orientation
+struct PositionConfiguration {
     // Direction triangles
     up_triangle: Triangle,
     down_triangle: Triangle,
@@ -87,6 +74,28 @@ pub struct RotatedDisplay<D, C: PixelColor> {
     ra_label_position: TextPosition,
 }
 
+// Stores configuration for a particular display
+pub struct RotatedDisplay<D, C: PixelColor> {
+    pub parent: D,
+    rotation: Rotation,
+
+    // Fonts and styles
+    status_font: FontRenderer,
+    guidance_font: FontRenderer,
+    fg_color: C,
+    bg_color: C,
+    stale_color: C,
+    triangle_style: PrimitiveStyle<C>,
+    triangle_stale_style: PrimitiveStyle<C>,
+    arrow_shaft_style: PrimitiveStyle<C>,
+    arrowhead_style: PrimitiveStyle<C>,
+    arc_style: PrimitiveStyle<C>,
+
+    default_positions: PositionConfiguration,
+    rotated_positions: PositionConfiguration,
+    rotate_status: bool,
+}
+
 impl<D> RotatedDisplay<D, Rgb565>
 where
     D: DrawTarget<Color = Rgb565>,
@@ -95,6 +104,49 @@ where
         let fg = Rgb565::RED;
         let bg = Rgb565::BLACK;
         let stale = Rgb565::CSS_MAROON;
+        let positions = PositionConfiguration {
+            up_triangle: Triangle::new(Point::new(15, 0), Point::new(0, 30), Point::new(30, 30)),
+            down_triangle: Triangle::new(Point::new(0, 0), Point::new(30, 0), Point::new(15, 30)),
+            right_triangle: Triangle::new(
+                Point::new(0, 97),
+                Point::new(0, 127),
+                Point::new(30, 112),
+            ),
+            left_triangle: Triangle::new(
+                Point::new(30, 97),
+                Point::new(30, 127),
+                Point::new(0, 112),
+            ),
+            guidance_center: Point::new(64, 64),
+            arc_radius: 20,
+            arrow_length: 20.0,
+            arrowhead_size: 12.0,
+            status_position: TextPosition {
+                start: Point::new(64, 64),
+                vertical: VerticalPosition::Center,
+                horizontal: HorizontalAlignment::Center,
+            },
+            tilt_position: TextPosition {
+                start: Point::new(127, 0),
+                vertical: VerticalPosition::Top,
+                horizontal: HorizontalAlignment::Right,
+            },
+            rot_position: TextPosition {
+                start: Point::new(127, 127),
+                vertical: VerticalPosition::Baseline,
+                horizontal: HorizontalAlignment::Right,
+            },
+            dec_label_position: TextPosition {
+                start: Point::new(0, 0),
+                vertical: VerticalPosition::Top,
+                horizontal: HorizontalAlignment::Left,
+            },
+            ra_label_position: TextPosition {
+                start: Point::new(0, 127),
+                vertical: VerticalPosition::Baseline,
+                horizontal: HorizontalAlignment::Left,
+            },
+        };
         Self {
             parent,
             rotation,
@@ -108,115 +160,14 @@ where
             arrow_shaft_style: PrimitiveStyle::with_stroke(fg, 3),
             arrowhead_style: PrimitiveStyle::with_fill(fg),
             arc_style: PrimitiveStyle::with_stroke(fg, 3),
-            up_triangle: Triangle::new(Point::new(15, 0), Point::new(0, 30), Point::new(30, 30)),
-            down_triangle: Triangle::new(Point::new(0, 0), Point::new(30, 0), Point::new(15, 30)),
-            right_triangle: Triangle::new(
-                Point::new(0, 97),
-                Point::new(0, 127),
-                Point::new(30, 112),
-            ),
-            left_triangle: Triangle::new(
-                Point::new(30, 97),
-                Point::new(30, 127),
-                Point::new(0, 112),
-            ),
-            guidance_center: Point::new(64, 64),
-            arc_radius: 20,
-            arrow_length: 20.0,
-            arrowhead_size: 12.0,
-            status_position: TextPosition {
-                start: Point::new(64, 64),
-                vertical: VerticalPosition::Center,
-                horizontal: HorizontalAlignment::Center,
-            },
-            tilt_position: TextPosition {
-                start: Point::new(127, 0),
-                vertical: VerticalPosition::Top,
-                horizontal: HorizontalAlignment::Right,
-            },
-            rot_position: TextPosition {
-                start: Point::new(127, 127),
-                vertical: VerticalPosition::Baseline,
-                horizontal: HorizontalAlignment::Right,
-            },
-            dec_label_position: TextPosition {
-                start: Point::new(0, 0),
-                vertical: VerticalPosition::Top,
-                horizontal: HorizontalAlignment::Left,
-            },
-            ra_label_position: TextPosition {
-                start: Point::new(0, 127),
-                vertical: VerticalPosition::Baseline,
-                horizontal: HorizontalAlignment::Left,
-            },
+            default_positions: positions.clone(),
+            rotated_positions: positions,
+            rotate_status: true,
         }
     }
 }
 
-impl<D> RotatedDisplay<D, BinaryColor>
-where
-    D: DrawTarget<Color = BinaryColor>,
-{
-    pub fn new_binary_128_128(parent: D, rotation: Rotation) -> Self {
-        let fg = BinaryColor::On;
-        let bg = BinaryColor::Off;
-        Self {
-            parent,
-            rotation,
-            status_font: FontRenderer::new::<fonts::u8g2_font_logisoso16_tr>(),
-            guidance_font: FontRenderer::new::<fonts::u8g2_font_logisoso34_tr>(),
-            fg_color: fg,
-            bg_color: bg,
-            stale_color: fg,
-            triangle_style: PrimitiveStyle::with_fill(fg),
-            triangle_stale_style: PrimitiveStyle::with_stroke(fg, 1),
-            arrow_shaft_style: PrimitiveStyle::with_stroke(fg, 3),
-            arrowhead_style: PrimitiveStyle::with_fill(fg),
-            arc_style: PrimitiveStyle::with_stroke(fg, 3),
-            up_triangle: Triangle::new(Point::new(15, 0), Point::new(0, 30), Point::new(30, 30)),
-            down_triangle: Triangle::new(Point::new(0, 0), Point::new(30, 0), Point::new(15, 30)),
-            right_triangle: Triangle::new(
-                Point::new(0, 97),
-                Point::new(0, 127),
-                Point::new(30, 112),
-            ),
-            left_triangle: Triangle::new(
-                Point::new(30, 97),
-                Point::new(30, 127),
-                Point::new(0, 112),
-            ),
-            guidance_center: Point::new(64, 64),
-            arc_radius: 20,
-            arrow_length: 20.0,
-            arrowhead_size: 12.0,
-            status_position: TextPosition {
-                start: Point::new(64, 64),
-                vertical: VerticalPosition::Center,
-                horizontal: HorizontalAlignment::Center,
-            },
-            tilt_position: TextPosition {
-                start: Point::new(127, 0),
-                vertical: VerticalPosition::Top,
-                horizontal: HorizontalAlignment::Right,
-            },
-            rot_position: TextPosition {
-                start: Point::new(127, 127),
-                vertical: VerticalPosition::Baseline,
-                horizontal: HorizontalAlignment::Right,
-            },
-            dec_label_position: TextPosition {
-                start: Point::new(0, 0),
-                vertical: VerticalPosition::Top,
-                horizontal: HorizontalAlignment::Left,
-            },
-            ra_label_position: TextPosition {
-                start: Point::new(0, 127),
-                vertical: VerticalPosition::Baseline,
-                horizontal: HorizontalAlignment::Left,
-            },
-        }
-    }
-}
+impl<D> RotatedDisplay<D, BinaryColor> where D: DrawTarget<Color = BinaryColor> {}
 
 impl<D, C: PixelColor> RotatedDisplay<D, C>
 where
@@ -229,6 +180,10 @@ where
 
     pub fn clear(&mut self) {
         self.parent.clear(self.bg_color).unwrap();
+    }
+
+    fn is_rotated(&self) -> bool {
+        self.rotation == Rotation::Deg90 || self.rotation == Rotation::Deg270
     }
 }
 
@@ -290,19 +245,31 @@ where
 {
     match state {
         DrawState::Message(msg) => {
+            let is_rotated = display.is_rotated();
+
             // Construct target to allow splitting borrows
             let mut target = RotatedTarget {
                 parent: &mut display.parent,
-                rotation: display.rotation,
+                rotation: if display.rotate_status {
+                    display.rotation
+                } else {
+                    Rotation::Deg0
+                },
+            };
+
+            let positions = if is_rotated {
+                &display.rotated_positions
+            } else {
+                &display.default_positions
             };
 
             display
                 .status_font
                 .render_aligned(
                     msg.as_str(),
-                    display.status_position.start,
-                    display.status_position.vertical,
-                    display.status_position.horizontal,
+                    positions.status_position.start,
+                    positions.status_position.vertical,
+                    positions.status_position.horizontal,
                     FontColor::Transparent(display.fg_color),
                     &mut target,
                 )
@@ -326,6 +293,7 @@ fn draw_operating_state<D, C>(
     let is_current = stale_angle.is_none();
     let tilt = state.tilt_target_distance;
     let rot = state.rotation_target_distance;
+    let is_rotated = display.is_rotated();
 
     // Construct target to allow splitting borrows
     let mut target = RotatedTarget {
@@ -333,13 +301,19 @@ fn draw_operating_state<D, C>(
         rotation: display.rotation,
     };
 
+    let positions = if is_rotated {
+        &display.rotated_positions
+    } else {
+        &display.default_positions
+    };
+
     display
         .guidance_font
         .render_aligned(
             format_offset(tilt).as_str(),
-            display.tilt_position.start,
-            display.tilt_position.vertical,
-            display.tilt_position.horizontal,
+            positions.tilt_position.start,
+            positions.tilt_position.vertical,
+            positions.tilt_position.horizontal,
             FontColor::Transparent(display.fg_color),
             &mut target,
         )
@@ -349,9 +323,9 @@ fn draw_operating_state<D, C>(
         .guidance_font
         .render_aligned(
             format_offset(rot).as_str(),
-            display.rot_position.start,
-            display.rot_position.vertical,
-            display.rot_position.horizontal,
+            positions.rot_position.start,
+            positions.rot_position.vertical,
+            positions.rot_position.horizontal,
             FontColor::Transparent(display.fg_color),
             &mut target,
         )
@@ -367,9 +341,9 @@ fn draw_operating_state<D, C>(
             .guidance_font
             .render_aligned(
                 if tilt > 0.0 { "N" } else { "S" },
-                display.dec_label_position.start,
-                display.dec_label_position.vertical,
-                display.dec_label_position.horizontal,
+                positions.dec_label_position.start,
+                positions.dec_label_position.vertical,
+                positions.dec_label_position.horizontal,
                 FontColor::Transparent(color),
                 &mut target,
             )
@@ -379,9 +353,9 @@ fn draw_operating_state<D, C>(
             .guidance_font
             .render_aligned(
                 if rot > 0.0 { "E" } else { "W" },
-                display.ra_label_position.start,
-                display.ra_label_position.vertical,
-                display.ra_label_position.horizontal,
+                positions.ra_label_position.start,
+                positions.ra_label_position.vertical,
+                positions.ra_label_position.horizontal,
                 FontColor::Transparent(color),
                 &mut target,
             )
@@ -393,18 +367,18 @@ fn draw_operating_state<D, C>(
             display.triangle_stale_style
         };
         if tilt > 0.0 {
-            display.up_triangle
+            positions.up_triangle
         } else {
-            display.down_triangle
+            positions.down_triangle
         }
         .into_styled(tri_style)
         .draw(&mut target)
         .unwrap();
 
         if rot > 0.0 {
-            display.right_triangle
+            positions.right_triangle
         } else {
-            display.left_triangle
+            positions.left_triangle
         }
         .into_styled(tri_style)
         .draw(&mut target)
@@ -414,10 +388,10 @@ fn draw_operating_state<D, C>(
     if !is_current {
         DisplayArc::new(
             Point::new(
-                display.guidance_center.x - display.arc_radius,
-                display.guidance_center.y - display.arc_radius,
+                positions.guidance_center.x - positions.arc_radius,
+                positions.guidance_center.y - positions.arc_radius,
             ),
-            (display.arc_radius * 2) as u32,
+            (positions.arc_radius * 2) as u32,
             (stale_angle.unwrap() as f32).deg(),
             90.0.deg(),
         )
@@ -429,30 +403,30 @@ fn draw_operating_state<D, C>(
 
     let display_angle_rad = (state.target_angle as f64 + 90.0).to_radians();
 
-    let half_len = display.arrow_length / 2.0;
+    let half_len = positions.arrow_length / 2.0;
 
     let cos_a = display_angle_rad.cos();
     let sin_a = display_angle_rad.sin();
 
     let tip = Point::new(
-        display.guidance_center.x + (half_len * cos_a) as i32,
-        display.guidance_center.y - (half_len * sin_a) as i32,
+        positions.guidance_center.x + (half_len * cos_a) as i32,
+        positions.guidance_center.y - (half_len * sin_a) as i32,
     );
 
     let tail = Point::new(
-        display.guidance_center.x - (half_len * cos_a) as i32,
-        display.guidance_center.y + (half_len * sin_a) as i32,
+        positions.guidance_center.x - (half_len * cos_a) as i32,
+        positions.guidance_center.y + (half_len * sin_a) as i32,
     );
 
-    let head_base_offset = half_len - display.arrowhead_size;
+    let head_base_offset = half_len - positions.arrowhead_size;
     let head_base_center = Point::new(
-        display.guidance_center.x + (head_base_offset * cos_a) as i32,
-        display.guidance_center.y - (head_base_offset * sin_a) as i32,
+        positions.guidance_center.x + (head_base_offset * cos_a) as i32,
+        positions.guidance_center.y - (head_base_offset * sin_a) as i32,
     );
 
     let angle_perp_plus = display_angle_rad + std::f64::consts::FRAC_PI_2;
     let angle_perp_minus = display_angle_rad - std::f64::consts::FRAC_PI_2;
-    let half_width = display.arrowhead_size / 2.0;
+    let half_width = positions.arrowhead_size / 2.0;
 
     let corner1 = Point::new(
         head_base_center.x + (half_width * angle_perp_plus.cos()) as i32,
