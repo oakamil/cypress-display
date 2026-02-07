@@ -16,9 +16,8 @@ use std::{
 
 use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
 use display_interface_spi::SPIInterface;
-use embedded_graphics::draw_target::DrawTarget;
 use linux_embedded_hal::Delay;
-use renderer::{BG_COLOR, DrawState, RotatedDisplay, Rotation, draw_ui};
+use renderer::{DrawState, RotatedDisplay, Rotation, draw_ui};
 use rppal::{
     gpio::Gpio,
     spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
@@ -81,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let spii = SPIInterface::new(SimpleHalSpiDevice::new(spi), dc);
     let raw_disp = Ssd1351::new(spii);
-    let mut disp = RotatedDisplay::new(raw_disp, current_rotation);
+    let mut disp = RotatedDisplay::new_rgb_128_128(raw_disp, current_rotation);
 
     disp.parent.reset(&mut rst, &mut Delay).unwrap();
     disp.parent.turn_on().unwrap();
@@ -91,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
-        Some(Framebuffer::new())
+        Some(RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation))
     } else {
         None
     };
@@ -113,6 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if target_rotation != current_rotation {
             println!("Updating display rotation to {}", target_rotation_deg);
             disp.set_rotation(target_rotation);
+            if let Some(fb) = &mut web_fb {
+                fb.set_rotation(target_rotation);
+            }
             current_rotation = target_rotation;
         }
 
@@ -146,18 +148,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         // Draw to physical display
-        disp.clear(BG_COLOR).unwrap();
+        disp.clear();
         draw_ui(&mut disp, &draw_state);
         let _ = disp.parent.flush();
 
         // Draw to virtual framebuffer
         if mirror_enabled {
             if let Some(fb) = &mut web_fb {
-                fb.clear(BG_COLOR);
+                fb.clear();
                 draw_ui(fb, &draw_state);
 
                 if let Ok(mut lock) = shared_frame.write() {
-                    lock.copy_from_slice(fb.as_bytes());
+                    lock.copy_from_slice(fb.parent.as_bytes());
                 }
             }
         }
