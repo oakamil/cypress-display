@@ -138,7 +138,7 @@ where
     D::Error: std::fmt::Debug,
 {
     pub fn new_binary_128_64(parent: D, rotation: Rotation) -> Self {
-        RotatedDisplay::new_128_32(
+        RotatedDisplay::new_128_64(
             parent,
             rotation,
             BinaryColor::On,
@@ -236,96 +236,92 @@ where
 
     fn new_128_64(parent: D, rotation: Rotation, fg_color: C, bg_color: C, stale_color: C) -> Self {
         let default_rendering = RenderingConfiguration {
-            up_triangle: Triangle::new(Point::new(6, 10), Point::new(0, 22), Point::new(12, 22)),
-            down_triangle: Triangle::new(Point::new(0, 10), Point::new(12, 10), Point::new(6, 22)),
-            right_triangle: Triangle::new(
-                Point::new(115, 10),
-                Point::new(115, 22),
-                Point::new(127, 16),
-            ),
-            left_triangle: Triangle::new(
-                Point::new(127, 10),
-                Point::new(127, 22),
-                Point::new(115, 16),
-            ),
-            guidance_center: Point::new(64, 16),
-            arc_radius: 9,
-            arrow_length: 24.0,
+            up_triangle: Triangle::new(Point::new(12, 0), Point::new(0, 24), Point::new(24, 24)),
+            down_triangle: Triangle::new(Point::new(0, 0), Point::new(24, 0), Point::new(12, 24)),
+            right_triangle: Triangle::new(Point::new(0, 36), Point::new(0, 60), Point::new(24, 48)),
+            left_triangle: Triangle::new(Point::new(24, 36), Point::new(24, 60), Point::new(0, 48)),
+            guidance_center: Point::new(112, 32),
+            arc_radius: 14,
+            arrow_length: 28.0,
             arrowhead_size: 8.0,
             status_position: TextPosition {
-                start: Point::new(64, 16),
+                start: Point::new(64, 32),
                 vertical: VerticalPosition::Center,
                 horizontal: HorizontalAlignment::Center,
             },
             tilt_position: TextPosition {
-                start: Point::new(18, 18),
-                vertical: VerticalPosition::Center,
-                horizontal: HorizontalAlignment::Left,
+                start: Point::new(89, 0),
+                vertical: VerticalPosition::Top,
+                horizontal: HorizontalAlignment::Right,
             },
             rot_position: TextPosition {
-                start: Point::new(109, 18),
-                vertical: VerticalPosition::Center,
+                start: Point::new(89, 63),
+                vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Right,
             },
             dec_label_position: TextPosition {
-                start: Point::new(0, 18),
-                vertical: VerticalPosition::Center,
+                start: Point::new(0, 0),
+                vertical: VerticalPosition::Top,
                 horizontal: HorizontalAlignment::Left,
             },
             ra_label_position: TextPosition {
-                start: Point::new(127, 18),
-                vertical: VerticalPosition::Center,
-                horizontal: HorizontalAlignment::Right,
+                start: Point::new(0, 63),
+                vertical: VerticalPosition::Baseline,
+                horizontal: HorizontalAlignment::Left,
             },
         };
         let rotated_rendering = RenderingConfiguration {
-            up_triangle: Triangle::new(Point::new(16, 2), Point::new(10, 14), Point::new(22, 14)),
-            down_triangle: Triangle::new(Point::new(10, 2), Point::new(22, 2), Point::new(16, 14)),
+            up_triangle: Triangle::new(Point::new(51, 32), Point::new(39, 56), Point::new(63, 56)),
+            down_triangle: Triangle::new(
+                Point::new(39, 32),
+                Point::new(63, 32),
+                Point::new(51, 56),
+            ),
             right_triangle: Triangle::new(
-                Point::new(22, 119),
-                Point::new(10, 113),
-                Point::new(10, 125),
+                Point::new(39, 68),
+                Point::new(39, 92),
+                Point::new(63, 80),
             ),
             left_triangle: Triangle::new(
-                Point::new(10, 119),
-                Point::new(22, 113),
-                Point::new(22, 125),
+                Point::new(63, 68),
+                Point::new(63, 92),
+                Point::new(39, 80),
             ),
             guidance_center: Point::new(16, 64),
-            arc_radius: 9,
-            arrow_length: 24.0,
+            arc_radius: 14,
+            arrow_length: 28.0,
             arrowhead_size: 8.0,
             status_position: TextPosition {
-                start: Point::new(64, 16),
+                start: Point::new(64, 32),
                 vertical: VerticalPosition::Center,
                 horizontal: HorizontalAlignment::Center,
             },
             tilt_position: TextPosition {
-                start: Point::new(16, 24),
+                start: Point::new(63, 0),
                 vertical: VerticalPosition::Top,
-                horizontal: HorizontalAlignment::Center,
+                horizontal: HorizontalAlignment::Right,
             },
             rot_position: TextPosition {
-                start: Point::new(16, 103),
+                start: Point::new(63, 127),
                 vertical: VerticalPosition::Baseline,
-                horizontal: HorizontalAlignment::Center,
+                horizontal: HorizontalAlignment::Right,
             },
             dec_label_position: TextPosition {
-                start: Point::new(16, 0),
+                start: Point::new(63, 32),
                 vertical: VerticalPosition::Top,
-                horizontal: HorizontalAlignment::Center,
+                horizontal: HorizontalAlignment::Right,
             },
             ra_label_position: TextPosition {
-                start: Point::new(16, 127),
+                start: Point::new(63, 96),
                 vertical: VerticalPosition::Baseline,
-                horizontal: HorizontalAlignment::Center,
+                horizontal: HorizontalAlignment::Right,
             },
         };
         Self {
             parent,
             rotation,
             status_font: FontRenderer::new::<fonts::u8g2_font_logisoso16_tr>(),
-            guidance_font: FontRenderer::new::<fonts::u8g2_font_logisoso16_tr>(),
+            guidance_font: FontRenderer::new::<fonts::u8g2_font_logisoso26_tr>(),
             fg_color,
             bg_color,
             stale_color,
@@ -337,7 +333,7 @@ where
             default_rendering,
             rotated_rendering,
             rotate_status: false,
-            high_precision: false,
+            high_precision: true,
         }
     }
 
