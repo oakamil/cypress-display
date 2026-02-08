@@ -19,8 +19,8 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 ### White OLED Display
 
 `cypress-display` can also be used with an SSD1306-based white (binary) OLED display, with a resolution of 128x64 (available in 0.96" size) or 128x32 (available in 0.91" size). It has been tested with [this generic OLED module](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845).
-**Interface**: I2C (must be enabled via raspi-config)
-**Wiring**: Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5.
+* **Interface**: I2C (must be enabled via raspi-config)
+* **Wiring**: Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5.
 
 Red film is recommended to preserve night adaptation. Note that white OLED displays are typically much brighter than RGB displays at the lowest brightness settings, so multiple layers of film are advised to reduce the brightness.
 
