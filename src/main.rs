@@ -45,12 +45,12 @@ impl FakeStateProvider {
 
     fn get_next_response(&mut self) -> CedarResponse {
         self.angle = (self.angle + 9.0) % 360.0;
-        let delta = if self.has_solution { 1.0 } else { 10.0 };
+        let delta = if self.has_solution { 1.17 } else { 10.0 };
         self.tilt = self.tilt + delta;
         if self.tilt > 180.0 {
             self.tilt = -179.2;
         }
-        self.rot = self.rot - delta;
+        self.rot = self.rot - delta * 2.0;
         if self.rot < -180.0 {
             self.rot = 179.7;
             if !self.has_solution {
