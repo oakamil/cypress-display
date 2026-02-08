@@ -2,10 +2,7 @@
 // See LICENSE file in root directory for license terms.
 
 use display_interface_spi::SPIInterface;
-use embedded_graphics::{
-    prelude::*,
-    pixelcolor::Rgb565,
-};
+use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
 use linux_embedded_hal::Delay;
 use rppal::{
     gpio::{Gpio, OutputPin},

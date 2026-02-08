@@ -1,21 +1,18 @@
 // Copyright (c) 2026 Omair Kamil
 // See LICENSE file in root directory for license terms.
 
-use embedded_graphics::{
-    prelude::*,
-    pixelcolor::BinaryColor,
-};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
 use rppal::i2c::I2c;
 use ssd1306::{
-    I2CDisplayInterface, Ssd1306 as Ssd1306Driver,
-    prelude::*,
-    mode::BufferedGraphicsMode,
+    I2CDisplayInterface, Ssd1306 as Ssd1306Driver, mode::BufferedGraphicsMode, prelude::*,
 };
 use std::error::Error;
 
 type Interface = I2CInterface<I2c>;
-type Driver32 = Ssd1306Driver<Interface, DisplaySize128x32, BufferedGraphicsMode<DisplaySize128x32>>;
-type Driver64 = Ssd1306Driver<Interface, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>;
+type Driver32 =
+    Ssd1306Driver<Interface, DisplaySize128x32, BufferedGraphicsMode<DisplaySize128x32>>;
+type Driver64 =
+    Ssd1306Driver<Interface, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>;
 
 enum DriverVariant {
     Size128x32(Driver32),
@@ -30,32 +27,38 @@ impl Ssd1306 {
     pub fn new_128_32() -> Result<Self, Box<dyn Error>> {
         let i2c = I2c::new()?;
         let interface = I2CDisplayInterface::new(i2c);
-        
+
         let driver = Ssd1306Driver::new(interface, DisplaySize128x32, DisplayRotation::Rotate0)
             .into_buffered_graphics_mode();
 
-        Ok(Self { driver: DriverVariant::Size128x32(driver) })
+        Ok(Self {
+            driver: DriverVariant::Size128x32(driver),
+        })
     }
 
     pub fn new_128_64() -> Result<Self, Box<dyn Error>> {
         let i2c = I2c::new()?;
         let interface = I2CDisplayInterface::new(i2c);
-        
+
         let driver = Ssd1306Driver::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
             .into_buffered_graphics_mode();
 
-        Ok(Self { driver: DriverVariant::Size128x64(driver) })
+        Ok(Self {
+            driver: DriverVariant::Size128x64(driver),
+        })
     }
 
     pub async fn turn_on(&mut self) -> Result<(), Box<dyn Error>> {
         match &mut self.driver {
             DriverVariant::Size128x32(d) => {
-                d.init().map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
+                d.init()
+                    .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
                 d.set_display_on(true)
                     .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
             }
             DriverVariant::Size128x64(d) => {
-                d.init().map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
+                d.init()
+                    .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
                 d.set_display_on(true)
                     .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
             }

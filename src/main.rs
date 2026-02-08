@@ -131,15 +131,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         1 => {
             let raw_disp = ssd1351::Ssd1351::new()?;
             TargetDisplay::Color(RotatedDisplay::new_rgb_128_128(raw_disp, current_rotation))
-        },
+        }
         2 => {
             let raw_disp = ssd1306::Ssd1306::new_128_64()?;
             // TODO: Layout for 128x64 isn't implemented yet
-            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(raw_disp, current_rotation))
-        },
+            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(
+                raw_disp,
+                current_rotation,
+            ))
+        }
         _ => {
             let raw_disp = ssd1306::Ssd1306::new_128_32()?;
-            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(raw_disp, current_rotation))
+            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(
+                raw_disp,
+                current_rotation,
+            ))
         }
     };
     disp.turn_on().await?;
@@ -150,17 +156,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
         Some(match display_type {
-            1 =>
-                RotatedDisplay::new_rgb_128_128(
-                    Framebuffer::new(),
-                    current_rotation,
-                ),
-            _ =>
-                RotatedDisplay::new_rgb_128_32(
-                    Framebuffer::new(),
-                    current_rotation,
-                ),
-            })
+            1 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
+            _ => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
+        })
     } else {
         None
     };
