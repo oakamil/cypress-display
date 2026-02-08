@@ -2,8 +2,11 @@
 // See LICENSE file in root directory for license terms.
 
 mod cedar_client;
+mod display;
 mod prefs;
 mod renderer;
+mod ssd1306;
+mod ssd1351;
 mod web;
 
 use std::{
@@ -15,15 +18,9 @@ use std::{
 };
 
 use cedar_client::{CedarClient, CedarResponse, ResponseStatus, ServerMode, ServerState};
-use display_interface_spi::SPIInterface;
-use linux_embedded_hal::Delay;
+use display::TargetDisplay;
 use renderer::{DrawState, RotatedDisplay, Rotation, draw_ui};
-use rppal::{
-    gpio::Gpio,
-    spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
-};
 use simple_signal::{self, Signal};
-use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
 use web::{Framebuffer, ServerContext};
 
@@ -95,6 +92,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => None,
     };
 
+    let display_type = match args.opt_value_from_str::<_, u32>("--type")? {
+        Some(val) if (1..=3).contains(&val) => val,
+        Some(_) => return Err("Type must be between 1 and 3".into()),
+        None => 1,
+    };
+
     let file_brightness = prefs::load_brightness();
     let initial_brightness = cli_brightness.unwrap_or(file_brightness);
 
@@ -123,27 +126,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r.store(false, Ordering::SeqCst);
     });
 
-    let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 19660800, Mode::Mode0)?;
-    let gpio = Gpio::new()?;
-    let dc = gpio.get(25)?.into_output();
-    let mut rst = gpio.get(27)?.into_output();
-
-    let spii = SPIInterface::new(SimpleHalSpiDevice::new(spi), dc);
-    let raw_disp = Ssd1351::new(spii);
-    let mut disp = RotatedDisplay::new_rgb_128_128(raw_disp, current_rotation);
-
-    disp.parent.reset(&mut rst, &mut Delay).unwrap();
-    disp.parent.turn_on().unwrap();
+    // Initialized specific display wrapper
+    let mut disp = match display_type {
+        1 => {
+            let raw_disp = ssd1351::Ssd1351::new()?;
+            TargetDisplay::Color(RotatedDisplay::new_rgb_128_128(raw_disp, current_rotation))
+        },
+        2 => {
+            let raw_disp = ssd1306::Ssd1306::new_128_64()?;
+            // TODO: Layout for 128x64 isn't implemented yet
+            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(raw_disp, current_rotation))
+        },
+        _ => {
+            let raw_disp = ssd1306::Ssd1306::new_128_32()?;
+            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(raw_disp, current_rotation))
+        }
+    };
+    disp.turn_on().await?;
 
     let mut current_brightness = initial_brightness;
-    disp.parent.set_brightness(current_brightness).unwrap();
+    disp.set_brightness(current_brightness).await?;
 
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
-        Some(RotatedDisplay::new_rgb_128_128(
-            Framebuffer::new(),
-            current_rotation,
-        ))
+        Some(match display_type {
+            1 =>
+                RotatedDisplay::new_rgb_128_128(
+                    Framebuffer::new(),
+                    current_rotation,
+                ),
+            _ =>
+                RotatedDisplay::new_rgb_128_32(
+                    Framebuffer::new(),
+                    current_rotation,
+                ),
+            })
     } else {
         None
     };
@@ -158,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let target_brightness = shared_brightness.load(Ordering::Relaxed);
         if target_brightness != current_brightness {
             println!("Updating display brightness to {}", target_brightness);
-            disp.parent.set_brightness(target_brightness).unwrap();
+            disp.set_brightness(target_brightness).await?;
             current_brightness = target_brightness;
         }
 
@@ -208,8 +225,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Draw to physical display
         disp.clear();
-        draw_ui(&mut disp, &draw_state);
-        let _ = disp.parent.flush();
+        match disp {
+            TargetDisplay::Color(ref mut d) => draw_ui(d, &draw_state),
+            TargetDisplay::Mono(ref mut d) => draw_ui(d, &draw_state),
+        };
+        let _ = disp.flush().await;
 
         // Draw to virtual framebuffer
         if mirror_enabled {
@@ -226,7 +246,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_millis(50)).await;
     }
 
-    disp.parent.reset(&mut rst, &mut Delay).unwrap();
-    disp.parent.turn_off().unwrap();
+    disp.turn_off().await?;
     Ok(())
 }
