@@ -134,8 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         2 => {
             let raw_disp = ssd1306::Ssd1306::new_128_64()?;
-            // TODO: Layout for 128x64 isn't implemented yet
-            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(
+            TargetDisplay::Mono(RotatedDisplay::new_binary_128_64(
                 raw_disp,
                 current_rotation,
             ))
@@ -157,6 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut web_fb = if mirror_enabled {
         Some(match display_type {
             1 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
+            2 => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
             _ => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
         })
     } else {
