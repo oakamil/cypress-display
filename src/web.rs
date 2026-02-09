@@ -41,10 +41,6 @@ impl Framebuffer {
         }
     }
 
-    pub fn clear(&mut self, color: Rgb565) {
-        self.pixels.fill(color);
-    }
-
     // Helper to get raw bytes for the web stream
     pub fn as_bytes(&self) -> &[u8] {
         unsafe {

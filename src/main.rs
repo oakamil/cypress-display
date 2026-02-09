@@ -2,8 +2,11 @@
 // See LICENSE file in root directory for license terms.
 
 mod cedar_client;
+mod display;
 mod prefs;
 mod renderer;
+mod ssd1306;
+mod ssd1351;
 mod web;
 
 use std::{
@@ -14,25 +17,68 @@ use std::{
     time::Duration,
 };
 
-use cedar_client::{CedarClient, ResponseStatus, ServerMode, ServerState};
-use display_interface_spi::SPIInterface;
-use embedded_graphics::draw_target::DrawTarget;
-use linux_embedded_hal::Delay;
-use renderer::{BG_COLOR, DrawState, RotatedDisplay, Rotation, draw_ui};
-use rppal::{
-    gpio::Gpio,
-    spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
-};
+use cedar_client::{CedarClient, CedarResponse, ResponseStatus, ServerMode, ServerState};
+use display::TargetDisplay;
+use renderer::{DrawState, RotatedDisplay, Rotation, draw_ui};
 use simple_signal::{self, Signal};
-use ssd1351::display::display::Ssd1351;
 use tokio::time::sleep;
 use web::{Framebuffer, ServerContext};
+
+struct FakeStateProvider {
+    tilt: f64,
+    rot: f64,
+    angle: f64,
+    has_solution: bool,
+    is_alt_az: bool,
+}
+
+impl FakeStateProvider {
+    fn new() -> Self {
+        FakeStateProvider {
+            tilt: 123.8,
+            rot: -45.3,
+            angle: 0.0,
+            has_solution: true,
+            is_alt_az: true,
+        }
+    }
+
+    fn get_next_response(&mut self) -> CedarResponse {
+        self.angle = (self.angle + 9.0) % 360.0;
+        let delta = if self.has_solution { 1.17 } else { 10.0 };
+        self.tilt = self.tilt + delta;
+        if self.tilt > 180.0 {
+            self.tilt = -179.2;
+        }
+        self.rot = self.rot - delta * 2.0;
+        if self.rot < -180.0 {
+            self.rot = 179.7;
+            if !self.has_solution {
+                self.is_alt_az = !self.is_alt_az;
+            }
+            self.has_solution = !self.has_solution;
+        }
+        CedarResponse {
+            status: ResponseStatus::Success,
+            server_state: Some(ServerState {
+                server_mode: ServerMode::Operating,
+                is_alt_az: self.is_alt_az,
+                has_slew_request: self.has_solution,
+                rotation_target_distance: self.rot,
+                tilt_target_distance: self.tilt,
+                target_angle: self.angle,
+                has_solution: self.has_solution,
+            }),
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = pico_args::Arguments::from_env();
 
     let mirror_enabled = args.contains("--mirror");
+    let test_mode = args.contains("--test");
 
     let cli_brightness = match args.opt_value_from_str::<_, u32>("--brightness")? {
         Some(val) if (1..=255).contains(&val) => Some(val as u8),
@@ -44,6 +90,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(val) if val == 0 || val == 90 || val == 180 || val == 270 => Some(val),
         Some(_) => return Err("Rotation must be one of 0, 90, 180, or 270".into()),
         None => None,
+    };
+
+    let display_type = match args.opt_value_from_str::<_, u32>("--type")? {
+        Some(val) if (1..=3).contains(&val) => val,
+        Some(_) => return Err("Type must be between 1 and 3".into()),
+        None => 1,
     };
 
     let file_brightness = prefs::load_brightness();
@@ -74,24 +126,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r.store(false, Ordering::SeqCst);
     });
 
-    let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 19660800, Mode::Mode0)?;
-    let gpio = Gpio::new()?;
-    let dc = gpio.get(25)?.into_output();
-    let mut rst = gpio.get(27)?.into_output();
-
-    let spii = SPIInterface::new(SimpleHalSpiDevice::new(spi), dc);
-    let raw_disp = Ssd1351::new(spii);
-    let mut disp = RotatedDisplay::new(raw_disp, current_rotation);
-
-    disp.parent.reset(&mut rst, &mut Delay).unwrap();
-    disp.parent.turn_on().unwrap();
+    // Initialized specific display wrapper
+    let mut disp = match display_type {
+        1 => {
+            let raw_disp = ssd1351::Ssd1351::new()?;
+            TargetDisplay::Color(RotatedDisplay::new_rgb_128_128(raw_disp, current_rotation))
+        }
+        2 => {
+            let raw_disp = ssd1306::Ssd1306::new_128_64()?;
+            TargetDisplay::Mono(RotatedDisplay::new_binary_128_64(
+                raw_disp,
+                current_rotation,
+            ))
+        }
+        _ => {
+            let raw_disp = ssd1306::Ssd1306::new_128_32()?;
+            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(
+                raw_disp,
+                current_rotation,
+            ))
+        }
+    };
+    disp.turn_on().await?;
 
     let mut current_brightness = initial_brightness;
-    disp.parent.set_brightness(current_brightness).unwrap();
+    disp.set_brightness(current_brightness).await?;
 
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
-        Some(Framebuffer::new())
+        Some(match display_type {
+            1 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
+            2 => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
+            _ => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
+        })
     } else {
         None
     };
@@ -100,11 +167,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_slew: Option<ServerState> = None;
     let mut stale_angle = 0;
 
+    let mut fake_provider = FakeStateProvider::new();
+
     while running.load(Ordering::SeqCst) {
         let target_brightness = shared_brightness.load(Ordering::Relaxed);
         if target_brightness != current_brightness {
             println!("Updating display brightness to {}", target_brightness);
-            disp.parent.set_brightness(target_brightness).unwrap();
+            disp.set_brightness(target_brightness).await?;
             current_brightness = target_brightness;
         }
 
@@ -113,10 +182,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if target_rotation != current_rotation {
             println!("Updating display rotation to {}", target_rotation_deg);
             disp.set_rotation(target_rotation);
+            if let Some(fb) = &mut web_fb {
+                fb.set_rotation(target_rotation);
+            }
             current_rotation = target_rotation;
         }
 
-        let resp = client.get_state().await;
+        let resp = if test_mode {
+            fake_provider.get_next_response()
+        } else {
+            client.get_state().await
+        };
         let draw_state = if resp.status != ResponseStatus::Success {
             DrawState::Message(format!("{:?}", resp.status))
         } else if let Some(state) = &resp.server_state {
@@ -146,18 +222,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         // Draw to physical display
-        disp.clear(BG_COLOR).unwrap();
-        draw_ui(&mut disp, &draw_state);
-        let _ = disp.parent.flush();
+        disp.clear();
+        match disp {
+            TargetDisplay::Color(ref mut d) => draw_ui(d, &draw_state),
+            TargetDisplay::Mono(ref mut d) => draw_ui(d, &draw_state),
+        };
+        let _ = disp.flush().await;
 
         // Draw to virtual framebuffer
         if mirror_enabled {
             if let Some(fb) = &mut web_fb {
-                fb.clear(BG_COLOR);
+                fb.clear();
                 draw_ui(fb, &draw_state);
 
                 if let Ok(mut lock) = shared_frame.write() {
-                    lock.copy_from_slice(fb.as_bytes());
+                    lock.copy_from_slice(fb.parent.as_bytes());
                 }
             }
         }
@@ -165,7 +244,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_millis(50)).await;
     }
 
-    disp.parent.reset(&mut rst, &mut Delay).unwrap();
-    disp.parent.turn_off().unwrap();
+    disp.turn_off().await?;
     Ok(())
 }
