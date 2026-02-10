@@ -14,7 +14,7 @@ use std::{
         Arc, RwLock,
         atomic::{AtomicBool, AtomicU8, AtomicU16, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use cedar_client::{CedarClient, CedarResponse, ResponseStatus, ServerMode, ServerState};
@@ -220,6 +220,8 @@ where
 
     let mut fake_provider = FakeStateProvider::new();
 
+    let mut update_time = Instant::now();
+
     while running.load(Ordering::SeqCst) {
         let target_brightness = shared_brightness.load(Ordering::Relaxed);
         if target_brightness != current_brightness {
@@ -289,7 +291,11 @@ where
             }
         }
 
-        sleep(Duration::from_millis(50)).await;
+        let elapsed = update_time.elapsed().as_millis() as u64;
+        if elapsed < 100 {
+            sleep(Duration::from_millis(100 - elapsed)).await;
+        }
+        update_time = Instant::now();
     }
 
     disp.parent.turn_off().await?;
