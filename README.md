@@ -10,19 +10,17 @@
 
 This software is intended to run on Linux-based embedded hardware, specifically the **Raspberry Pi**, as it utilizes hardware-specific HALs (e.g. `rppal`, `linux-embedded-hal`).
 
-### RGB Display
+### Supported Displays
 
-`cypress-display` can be used with an SSD1351-based OLED RGB display with a resolution of 128x128. It has been tested with the [Waveshare 1.5 RGB OLED display module](https://www.waveshare.com/1.5inch-rgb-oled-module.htm).
-* **Interface**: SPI (must be enabled via raspi-config)
-* **Wiring**: Refer to Waveshare's wiring [diagram](https://www.waveshare.com/img/devkit/LCD/1.5inch-RGB-OLED-Module/1.5inch-RGB-OLED-Module-details-5.jpg).
+| Type | Size | Color | Resolution | Driver | Interface | Wiring | Tested Sample |
+| ---| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1.5" | RGB | 128x128 | SSD1351 | SPI | [Waveshare wiring diagram](https://www.waveshare.com/img/devkit/LCD/1.5inch-RGB-OLED-Module/1.5inch-RGB-OLED-Module-details-5.jpg) | [Waveshare](https://www.waveshare.com/1.5inch-rgb-oled-module.htm) |
+| 2 | 0.96" | White | 128x64 | SSD1306 | I2C | Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5. | [Makerfocus](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845) |
+| 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) |
 
-### White OLED Display
+Note that SPI/I2C needs to enabled via `raspi-config`.
 
-`cypress-display` can also be used with an SSD1306-based white (binary) OLED display, with a resolution of 128x64 (available in 0.96" size) or 128x32 (available in 0.91" size). It has been tested with [this generic OLED module](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845).
-* **Interface**: I2C (must be enabled via raspi-config)
-* **Wiring**: Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5.
-
-Red film is recommended to preserve night adaptation. Note that white OLED displays are typically much brighter than RGB displays at the lowest brightness settings, so multiple layers of film are advised to reduce the brightness.
+Red film is recommended to preserve night adaptation when using white OLED displays. The white OLED displays are typically much brighter than RGB displays at the lowest brightness settings, so multiple layers of film are advised to reduce the brightness.
 
 ## Building
 
@@ -53,7 +51,7 @@ cd out/cypress/bin
 ```
 * `--brightness`: (Optional) Set physical display brightness (1-255). Default is 128 (50%).
 * `--rotate`: (Optional) Set physical display clockwise rotation (0, 90, 180, or 270). Default is 0.
-* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Binary 128x64, 3 = Binary 128x32. Default is 1.
+* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Mono 128x64, 3 = Mono 128x32. Default is 1.
 * `--mirror`: (Optional) Mirror the physical display to the web UI.
 * `--test`: (Optional) Test mode that cycles through various guidance values.
 
