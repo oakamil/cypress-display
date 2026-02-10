@@ -19,6 +19,9 @@ use std::{
 
 use cedar_client::{CedarClient, CedarResponse, ResponseStatus, ServerMode, ServerState};
 use display::TargetDisplay;
+use embedded_graphics::{
+    draw_target::DrawTarget, geometry::OriginDimensions, pixelcolor::PixelColor,
+};
 use renderer::{DrawState, RotatedDisplay, Rotation, draw_ui};
 use simple_signal::{self, Signal};
 use tokio::time::sleep;
@@ -103,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let file_rotation = prefs::load_rotation();
     let initial_rotation = cli_rotation.unwrap_or(file_rotation);
-    let mut current_rotation = Rotation::from_degrees(initial_rotation);
+    let current_rotation = Rotation::from_degrees(initial_rotation);
 
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
     let shared_rotation = Arc::new(AtomicU16::new(initial_rotation));
@@ -126,31 +129,79 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r.store(false, Ordering::SeqCst);
     });
 
-    // Initialized specific display wrapper
-    let mut disp = match display_type {
+    // Initialize and use specific display wrapper
+    match display_type {
         1 => {
             let raw_disp = ssd1351::Ssd1351::new()?;
-            TargetDisplay::Color(RotatedDisplay::new_rgb_128_128(raw_disp, current_rotation))
+            let disp = RotatedDisplay::new_rgb_128_128(raw_disp, current_rotation);
+            run_display(
+                disp,
+                running,
+                shared_brightness,
+                shared_rotation,
+                test_mode,
+                mirror_enabled,
+                display_type,
+                shared_frame,
+            )
+            .await?
         }
         2 => {
             let raw_disp = ssd1306::Ssd1306::new_128_64()?;
-            TargetDisplay::Mono(RotatedDisplay::new_binary_128_64(
-                raw_disp,
-                current_rotation,
-            ))
+            let disp = RotatedDisplay::new_binary_128_64(raw_disp, current_rotation);
+            run_display(
+                disp,
+                running,
+                shared_brightness,
+                shared_rotation,
+                test_mode,
+                mirror_enabled,
+                display_type,
+                shared_frame,
+            )
+            .await?
         }
         _ => {
             let raw_disp = ssd1306::Ssd1306::new_128_32()?;
-            TargetDisplay::Mono(RotatedDisplay::new_binary_128_32(
-                raw_disp,
-                current_rotation,
-            ))
+            let disp = RotatedDisplay::new_binary_128_32(raw_disp, current_rotation);
+            run_display(
+                disp,
+                running,
+                shared_brightness,
+                shared_rotation,
+                test_mode,
+                mirror_enabled,
+                display_type,
+                shared_frame,
+            )
+            .await?
         }
     };
-    disp.turn_on().await?;
+    Ok(())
+}
 
+async fn run_display<D, C>(
+    mut disp: RotatedDisplay<D, C>,
+    running: Arc<AtomicBool>,
+    shared_brightness: Arc<AtomicU8>,
+    shared_rotation: Arc<AtomicU16>,
+    test_mode: bool,
+    mirror_enabled: bool,
+    display_type: u32,
+    shared_frame: Arc<RwLock<Vec<u8>>>,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    D: TargetDisplay + DrawTarget<Color = C> + OriginDimensions,
+    C: PixelColor,
+    D::Error: std::fmt::Debug,
+{
+    disp.parent.turn_on().await?;
+
+    let initial_brightness = shared_brightness.load(Ordering::Relaxed);
     let mut current_brightness = initial_brightness;
-    disp.set_brightness(current_brightness).await?;
+    disp.parent.set_brightness(current_brightness).await?;
+
+    let mut current_rotation = Rotation::from_degrees(shared_rotation.load(Ordering::Relaxed));
 
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
@@ -173,7 +224,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let target_brightness = shared_brightness.load(Ordering::Relaxed);
         if target_brightness != current_brightness {
             println!("Updating display brightness to {}", target_brightness);
-            disp.set_brightness(target_brightness).await?;
+            disp.parent.set_brightness(target_brightness).await?;
             current_brightness = target_brightness;
         }
 
@@ -223,11 +274,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Draw to physical display
         disp.clear();
-        match disp {
-            TargetDisplay::Color(ref mut d) => draw_ui(d, &draw_state),
-            TargetDisplay::Mono(ref mut d) => draw_ui(d, &draw_state),
-        };
-        let _ = disp.flush().await;
+        draw_ui(&mut disp, &draw_state);
+        let _ = disp.parent.flush().await;
 
         // Draw to virtual framebuffer
         if mirror_enabled {
@@ -244,6 +292,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_millis(50)).await;
     }
 
-    disp.turn_off().await?;
+    disp.parent.turn_off().await?;
     Ok(())
 }

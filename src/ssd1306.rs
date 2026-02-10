@@ -1,6 +1,9 @@
 // Copyright (c) 2026 Omair Kamil
 // See LICENSE file in root directory for license terms.
 
+use crate::display::TargetDisplay;
+
+use async_trait::async_trait;
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
 use rppal::i2c::I2c;
 use ssd1306::{
@@ -47,8 +50,11 @@ impl Ssd1306 {
             driver: DriverVariant::Size128x64(driver),
         })
     }
+}
 
-    pub async fn turn_on(&mut self) -> Result<(), Box<dyn Error>> {
+#[async_trait]
+impl TargetDisplay for Ssd1306 {
+    async fn turn_on(&mut self) -> Result<(), Box<dyn Error>> {
         match &mut self.driver {
             DriverVariant::Size128x32(d) => {
                 d.init()
@@ -65,7 +71,7 @@ impl Ssd1306 {
         }
     }
 
-    pub async fn turn_off(&mut self) -> Result<(), Box<dyn Error>> {
+    async fn turn_off(&mut self) -> Result<(), Box<dyn Error>> {
         match &mut self.driver {
             DriverVariant::Size128x32(d) => d
                 .set_display_on(false)
@@ -76,7 +82,7 @@ impl Ssd1306 {
         }
     }
 
-    pub async fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+    async fn flush(&mut self) -> Result<(), Box<dyn Error>> {
         match &mut self.driver {
             DriverVariant::Size128x32(d) => d
                 .flush()
@@ -87,7 +93,7 @@ impl Ssd1306 {
         }
     }
 
-    pub async fn set_brightness(&mut self, brightness: u8) -> Result<(), Box<dyn Error>> {
+    async fn set_brightness(&mut self, brightness: u8) -> Result<(), Box<dyn Error>> {
         match &mut self.driver {
             DriverVariant::Size128x32(d) => d
                 .set_brightness(Brightness::custom(1, brightness))
