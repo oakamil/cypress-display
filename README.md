@@ -17,6 +17,7 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 | 1 | 1.5" | RGB | 128x128 | SSD1351 | SPI | [Waveshare wiring diagram](https://www.waveshare.com/img/devkit/LCD/1.5inch-RGB-OLED-Module/1.5inch-RGB-OLED-Module-details-5.jpg) | [Waveshare](https://www.waveshare.com/1.5inch-rgb-oled-module.htm) |
 | 2 | 0.96" | White | 128x64 | SSD1306 | I2C | Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5. | [Makerfocus](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845) |
 | 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) |
+| 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) |
 
 Note that SPI/I2C needs to enabled via `raspi-config`.
 
@@ -51,7 +52,7 @@ cd out/cypress/bin
 ```
 * `--brightness`: (Optional) Set physical display brightness (1-255). Default is 128 (50%).
 * `--rotate`: (Optional) Set physical display clockwise rotation (0, 90, 180, or 270). Default is 0.
-* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Mono 128x64, 3 = Mono 128x32. Default is 1.
+* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Mono 128x64 (SSD1306), 3 = Mono 128x32 (SSD1306), 4 = Mono 128x64 (SSD1309). Default is 1.
 * `--mirror`: (Optional) Mirror the physical display to the web UI.
 * `--test`: (Optional) Test mode that cycles through various guidance values.
 
@@ -126,7 +127,7 @@ unzip cypress-display.zip
 ./install.sh
 ```
 
-The installation will set up `cypress-display` for use with a 128x128 RGB display. To use a different display update `cypress-display.service` to add the `--type 2` or `--type 3` argument to the end of `ExecStart`.
+The installation will set up `cypress-display` for use with a 128x128 RGB display. To use a different display update `cypress-display.service` to add the `--type` argument to the end of `ExecStart`.
 
 ## License
 

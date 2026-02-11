@@ -10,6 +10,7 @@ cedar-elements = { git = "https://github.com/oakamil/cedar-server" }
 chrono = "0.4"
 display-interface-spi = "0.5.0"
 embedded-graphics = "0.8"
+embedded-hal = "1.0.0"
 linux-embedded-hal = "0.4.0"
 log = "0.4.29"
 pico-args = "0.5.0"
@@ -18,6 +19,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 simple-signal = "1"
 ssd1306 = "0.10.0"
+#ssd1309 = { git = "https://github.com/oakamil/ssd1309.git", branch="update" }
+ssd1309 = { path = "../ssd1309" }
 ssd1351 = { git = "https://codeberg.org/oakamil/ssd1351-rpi.git" }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tonic = "0.11"

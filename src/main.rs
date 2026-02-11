@@ -6,6 +6,7 @@ mod display;
 mod prefs;
 mod renderer;
 mod ssd1306;
+mod ssd1309;
 mod ssd1351;
 mod web;
 
@@ -96,8 +97,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let display_type = match args.opt_value_from_str::<_, u32>("--type")? {
-        Some(val) if (1..=3).contains(&val) => val,
-        Some(_) => return Err("Type must be between 1 and 3".into()),
+        Some(val) if (1..=4).contains(&val) => val,
+        Some(_) => return Err("Type must be between 1 and 4".into()),
         None => 1,
     };
 
@@ -161,9 +162,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?
         }
-        _ => {
+        3 => {
             let raw_disp = ssd1306::Ssd1306::new_128_32()?;
             let disp = RotatedDisplay::new_binary_128_32(raw_disp, current_rotation);
+            run_display(
+                disp,
+                running,
+                shared_brightness,
+                shared_rotation,
+                test_mode,
+                mirror_enabled,
+                display_type,
+                shared_frame,
+            )
+            .await?
+        }
+        _ => {
+            let raw_disp = ssd1309::Ssd1309::new()?;
+            let disp = RotatedDisplay::new_binary_128_64(raw_disp, current_rotation);
             run_display(
                 disp,
                 running,
@@ -207,8 +223,8 @@ where
     let mut web_fb = if mirror_enabled {
         Some(match display_type {
             1 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
-            2 => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
-            _ => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
+            3 => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
+            _ => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
         })
     } else {
         None

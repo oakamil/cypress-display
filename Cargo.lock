@@ -551,6 +551,7 @@ dependencies = [
  "chrono",
  "display-interface-spi",
  "embedded-graphics",
+ "embedded-hal",
  "linux-embedded-hal",
  "log",
  "pico-args",
@@ -559,6 +560,7 @@ dependencies = [
  "serde_json",
  "simple-signal",
  "ssd1306",
+ "ssd1309",
  "ssd1351",
  "tokio",
  "tonic",
@@ -2531,6 +2533,15 @@ dependencies = [
  "embedded-graphics-core",
  "embedded-hal",
  "maybe-async-cfg",
+]
+
+[[package]]
+name = "ssd1309"
+version = "0.4.0"
+dependencies = [
+ "display-interface",
+ "embedded-graphics-core",
+ "embedded-hal",
 ]
 
 [[package]]
