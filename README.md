@@ -12,12 +12,14 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 
 ### Supported Displays
 
-| Type | Size | Color | Resolution | Driver | Interface | Wiring | Tested Sample |
-| ---| --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1.5" | RGB | 128x128 | SSD1351 | SPI | [Waveshare wiring diagram](https://www.waveshare.com/img/devkit/LCD/1.5inch-RGB-OLED-Module/1.5inch-RGB-OLED-Module-details-5.jpg) | [Waveshare](https://www.waveshare.com/1.5inch-rgb-oled-module.htm) |
-| 2 | 0.96" | White | 128x64 | SSD1306 | I2C | Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5. | [Makerfocus](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845) |
-| 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) |
-| 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) |
+| Type | Size | Color | Resolution | Driver | Interface | Wiring | Tested Sample | Draw Time* |
+| ---| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1.5" | RGB | 128x128 | SSD1351 | SPI | [Waveshare wiring diagram](https://www.waveshare.com/img/devkit/LCD/1.5inch-RGB-OLED-Module/1.5inch-RGB-OLED-Module-details-5.jpg) | [Waveshare](https://www.waveshare.com/1.5inch-rgb-oled-module.htm) | 24 ms |
+| 2 | 0.96" | White | 128x64 | SSD1306 | I2C | Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5. | [Makerfocus](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845) | 173 ms |
+| 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) | 87 ms |
+| 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) | 184 ms |
+
+\* Draw time is the maximum time it takes to draw a frame as measured on a Raspberry Pi Zero 2W. Observed draw times were ~40% shorter on a Raspberry Pi 5 for I2C and ~20% shorter on SPI.
 
 Note that SPI/I2C needs to enabled via `raspi-config`.
 
