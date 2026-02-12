@@ -2538,6 +2538,7 @@ dependencies = [
 [[package]]
 name = "ssd1309"
 version = "0.4.0"
+source = "git+https://github.com/oakamil/ssd1309.git#e0c0cab053bf2112a129d09651f9d8db81968fe8"
 dependencies = [
  "display-interface",
  "embedded-graphics-core",

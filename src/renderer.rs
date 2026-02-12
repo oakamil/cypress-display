@@ -235,11 +235,13 @@ where
     }
 
     fn new_128_64(parent: D, rotation: Rotation, fg_color: C, bg_color: C, stale_color: C) -> Self {
+        // Intentionally leave 1 pixel border due to vertical shift observed on SSD1309 display with
+        // an RPI5 but not an RPIZ2W
         let default_rendering = RenderingConfiguration {
-            up_triangle: Triangle::new(Point::new(12, 0), Point::new(0, 24), Point::new(24, 24)),
-            down_triangle: Triangle::new(Point::new(0, 0), Point::new(24, 0), Point::new(12, 24)),
-            right_triangle: Triangle::new(Point::new(0, 36), Point::new(0, 60), Point::new(24, 48)),
-            left_triangle: Triangle::new(Point::new(24, 36), Point::new(24, 60), Point::new(0, 48)),
+            up_triangle: Triangle::new(Point::new(13, 1), Point::new(1, 25), Point::new(25, 25)),
+            down_triangle: Triangle::new(Point::new(1, 1), Point::new(25, 1), Point::new(13, 25)),
+            right_triangle: Triangle::new(Point::new(1, 36), Point::new(1, 60), Point::new(25, 48)),
+            left_triangle: Triangle::new(Point::new(25, 36), Point::new(25, 60), Point::new(1, 48)),
             guidance_center: Point::new(112, 32),
             arc_radius: 14,
             arrow_length: 28.0,
@@ -250,42 +252,42 @@ where
                 horizontal: HorizontalAlignment::Center,
             },
             tilt_position: TextPosition {
-                start: Point::new(89, 0),
+                start: Point::new(91, 1),
                 vertical: VerticalPosition::Top,
                 horizontal: HorizontalAlignment::Right,
             },
             rot_position: TextPosition {
-                start: Point::new(89, 63),
+                start: Point::new(91, 62),
                 vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Right,
             },
             dec_label_position: TextPosition {
-                start: Point::new(0, 0),
+                start: Point::new(1, 1),
                 vertical: VerticalPosition::Top,
                 horizontal: HorizontalAlignment::Left,
             },
             ra_label_position: TextPosition {
-                start: Point::new(0, 63),
+                start: Point::new(1, 62),
                 vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Left,
             },
         };
         let rotated_rendering = RenderingConfiguration {
-            up_triangle: Triangle::new(Point::new(51, 32), Point::new(39, 56), Point::new(63, 56)),
+            up_triangle: Triangle::new(Point::new(50, 33), Point::new(38, 57), Point::new(62, 57)),
             down_triangle: Triangle::new(
-                Point::new(39, 32),
-                Point::new(63, 32),
-                Point::new(51, 56),
+                Point::new(38, 33),
+                Point::new(62, 33),
+                Point::new(50, 57),
             ),
             right_triangle: Triangle::new(
-                Point::new(39, 68),
-                Point::new(39, 92),
-                Point::new(63, 80),
+                Point::new(38, 67),
+                Point::new(38, 91),
+                Point::new(62, 79),
             ),
             left_triangle: Triangle::new(
-                Point::new(63, 68),
-                Point::new(63, 92),
-                Point::new(39, 80),
+                Point::new(62, 67),
+                Point::new(62, 91),
+                Point::new(38, 79),
             ),
             guidance_center: Point::new(16, 64),
             arc_radius: 14,
@@ -297,22 +299,22 @@ where
                 horizontal: HorizontalAlignment::Center,
             },
             tilt_position: TextPosition {
-                start: Point::new(63, 0),
+                start: Point::new(62, 1),
                 vertical: VerticalPosition::Top,
                 horizontal: HorizontalAlignment::Right,
             },
             rot_position: TextPosition {
-                start: Point::new(63, 127),
+                start: Point::new(62, 126),
                 vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Right,
             },
             dec_label_position: TextPosition {
-                start: Point::new(63, 32),
+                start: Point::new(62, 33),
                 vertical: VerticalPosition::Top,
                 horizontal: HorizontalAlignment::Right,
             },
             ra_label_position: TextPosition {
-                start: Point::new(63, 96),
+                start: Point::new(62, 95),
                 vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Right,
             },

@@ -19,8 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 simple-signal = "1"
 ssd1306 = "0.10.0"
-#ssd1309 = { git = "https://github.com/oakamil/ssd1309.git", branch="update" }
-ssd1309 = { path = "../ssd1309" }
+ssd1309 = { git = "https://github.com/oakamil/ssd1309.git" }
 ssd1351 = { git = "https://codeberg.org/oakamil/ssd1351-rpi.git" }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tonic = "0.11"
