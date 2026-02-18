@@ -8,6 +8,7 @@ mod renderer;
 mod ssd1306;
 mod ssd1309;
 mod ssd1351;
+mod st7789;
 mod web;
 
 use std::{
@@ -97,8 +98,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let display_type = match args.opt_value_from_str::<_, u32>("--type")? {
-        Some(val) if (1..=4).contains(&val) => val,
-        Some(_) => return Err("Type must be between 1 and 4".into()),
+        Some(val) if (1..=5).contains(&val) => val,
+        Some(_) => return Err("Type must be between 1 and 5".into()),
         None => 1,
     };
 
@@ -177,9 +178,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?
         }
-        _ => {
+        4 => {
             let raw_disp = ssd1309::Ssd1309::new()?;
             let disp = RotatedDisplay::new_binary_128_64(raw_disp, current_rotation);
+            run_display(
+                disp,
+                running,
+                shared_brightness,
+                shared_rotation,
+                test_mode,
+                mirror_enabled,
+                display_type,
+                shared_frame,
+            )
+            .await?
+        }
+        _ => {
+            let raw_disp = st7789::St7789::new()?;
+            let disp = RotatedDisplay::new_rgb_240_240(raw_disp, current_rotation);
             run_display(
                 disp,
                 running,
@@ -222,7 +238,8 @@ where
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
         Some(match display_type {
-            1 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
+            // Use 128x128 mirror for 240x240 display as well, to keep web implementation simple
+            1 | 5 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
             3 => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
             _ => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
         })
@@ -308,6 +325,7 @@ where
         }
 
         let elapsed = update_time.elapsed().as_millis() as u64;
+        println!("{}", elapsed);
         if elapsed < 100 {
             sleep(Duration::from_millis(100 - elapsed)).await;
         }

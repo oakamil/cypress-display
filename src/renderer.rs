@@ -101,6 +101,16 @@ where
     D: DrawTarget<Color = Rgb565>,
     D::Error: std::fmt::Debug,
 {
+    pub fn new_rgb_240_240(parent: D, rotation: Rotation) -> Self {
+        RotatedDisplay::new_240_240(
+            parent,
+            rotation,
+            Rgb565::RED,
+            Rgb565::BLACK,
+            Rgb565::CSS_MAROON,
+        )
+    }
+
     pub fn new_rgb_128_128(parent: D, rotation: Rotation) -> Self {
         RotatedDisplay::new_128_128(
             parent,
@@ -163,6 +173,77 @@ where
     D: DrawTarget<Color = C>,
     D::Error: std::fmt::Debug,
 {
+    fn new_240_240(
+        parent: D,
+        rotation: Rotation,
+        fg_color: C,
+        bg_color: C,
+        stale_color: C,
+    ) -> Self {
+        let positions = RenderingConfiguration {
+            up_triangle: Triangle::new(Point::new(32, 2), Point::new(2, 62), Point::new(62, 62)),
+            down_triangle: Triangle::new(Point::new(2, 2), Point::new(62, 2), Point::new(32, 62)),
+            right_triangle: Triangle::new(
+                Point::new(2, 177),
+                Point::new(2, 237),
+                Point::new(62, 207),
+            ),
+            left_triangle: Triangle::new(
+                Point::new(62, 177),
+                Point::new(62, 237),
+                Point::new(2, 207),
+            ),
+            guidance_center: Point::new(120, 120),
+            arc_radius: 40,
+            arrow_length: 80.0,
+            arrowhead_size: 24.0,
+            status_position: TextPosition {
+                start: Point::new(120, 120),
+                vertical: VerticalPosition::Center,
+                horizontal: HorizontalAlignment::Center,
+            },
+            tilt_position: TextPosition {
+                start: Point::new(237, 2),
+                vertical: VerticalPosition::Top,
+                horizontal: HorizontalAlignment::Right,
+            },
+            rot_position: TextPosition {
+                start: Point::new(237, 237),
+                vertical: VerticalPosition::Baseline,
+                horizontal: HorizontalAlignment::Right,
+            },
+            dec_label_position: TextPosition {
+                start: Point::new(2, 2),
+                vertical: VerticalPosition::Top,
+                horizontal: HorizontalAlignment::Left,
+            },
+            ra_label_position: TextPosition {
+                start: Point::new(2, 237),
+                vertical: VerticalPosition::Baseline,
+                horizontal: HorizontalAlignment::Left,
+            },
+        };
+
+        Self {
+            parent,
+            rotation,
+            status_font: FontRenderer::new::<fonts::u8g2_font_logisoso32_tr>(),
+            guidance_font: FontRenderer::new::<fonts::u8g2_font_logisoso58_tr>(),
+            fg_color,
+            bg_color,
+            stale_color,
+            triangle_style: PrimitiveStyle::with_fill(fg_color),
+            triangle_stale_style: PrimitiveStyle::with_stroke(fg_color, 2),
+            arrow_shaft_style: PrimitiveStyle::with_stroke(fg_color, 6),
+            arrowhead_style: PrimitiveStyle::with_fill(fg_color),
+            arc_style: PrimitiveStyle::with_stroke(fg_color, 6),
+            default_rendering: positions.clone(),
+            rotated_rendering: positions,
+            rotate_status: true,
+            high_precision: true,
+        }
+    }
+
     fn new_128_128(
         parent: D,
         rotation: Rotation,
