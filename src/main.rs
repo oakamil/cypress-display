@@ -25,6 +25,7 @@ use embedded_graphics::{
     draw_target::DrawTarget, geometry::OriginDimensions, pixelcolor::PixelColor,
 };
 use renderer::{DrawState, RotatedDisplay, Rotation, draw_ui};
+use rppal::gpio::{Event, Gpio, InputPin, Trigger};
 use simple_signal::{self, Signal};
 use tokio::time::sleep;
 use web::{Framebuffer, ServerContext};
@@ -84,6 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mirror_enabled = args.contains("--mirror");
     let test_mode = args.contains("--test");
+    let buttons_enabled = args.contains("--buttons");
 
     let cli_brightness = match args.opt_value_from_str::<_, u32>("--brightness")? {
         Some(val) if (1..=255).contains(&val) => Some(val as u8),
@@ -120,6 +122,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         brightness: shared_brightness.clone(),
         rotation: shared_rotation.clone(),
         frame: shared_frame.clone(),
+    };
+
+    // Store button handles to keep pins/interrupts alive
+    let _button_handles = if buttons_enabled {
+        start_button_monitor(shared_brightness.clone(), shared_rotation.clone())
+    } else {
+        Vec::new()
     };
 
     web::start_server(server_ctx)?;
@@ -325,7 +334,6 @@ where
         }
 
         let elapsed = update_time.elapsed().as_millis() as u64;
-        println!("{}", elapsed);
         if elapsed < 100 {
             sleep(Duration::from_millis(100 - elapsed)).await;
         }
@@ -334,4 +342,84 @@ where
 
     disp.parent.turn_off().await?;
     Ok(())
+}
+
+// Returned Vec<InputPin> must be kept alive for interrupts to function
+fn start_button_monitor(brightness: Arc<AtomicU8>, rotation: Arc<AtomicU16>) -> Vec<InputPin> {
+    let mut kept_pins = Vec::new();
+
+    let gpio = match Gpio::new() {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("GPIO initialization failed (Buttons disabled): {}", e);
+            return Vec::new();
+        }
+    };
+
+    // Helper to configure a pin, set async interrupt, and store it
+    let mut setup_pin =
+        |pin_num: u8, callback: Box<dyn FnMut(Event) + Send + 'static>| match gpio.get(pin_num) {
+            Ok(p) => {
+                let mut pin = p.into_input_pullup();
+                match pin.set_async_interrupt(
+                    Trigger::FallingEdge,
+                    Some(Duration::from_millis(50)),
+                    callback,
+                ) {
+                    Ok(_) => {
+                        println!("Button enabled on Pin {}", pin_num);
+                        kept_pins.push(pin);
+                    }
+                    Err(e) => eprintln!("Failed to set interrupt for Pin {}: {}", pin_num, e),
+                }
+            }
+            Err(e) => eprintln!("Failed to get Pin {}: {}", pin_num, e),
+        };
+
+    // Pin 21: Increase Brightness
+    let b_inc = brightness.clone();
+    setup_pin(
+        21,
+        Box::new(move |_| {
+            println!("Button: Brightness Up");
+            let current = b_inc.load(Ordering::Relaxed);
+            let new_val = current.saturating_add(8);
+            b_inc.store(new_val, Ordering::Relaxed);
+            prefs::save_brightness(new_val);
+        }),
+    );
+
+    // Pin 16: Decrease Brightness
+    let b_dec = brightness.clone();
+    setup_pin(
+        16,
+        Box::new(move |_| {
+            println!("Button: Brightness Down");
+            let current = b_dec.load(Ordering::Relaxed);
+            // Ensure it doesn't go completely black (min 8)
+            let new_val = current.saturating_sub(8).max(8);
+            b_dec.store(new_val, Ordering::Relaxed);
+            prefs::save_brightness(new_val);
+        }),
+    );
+
+    // Pin 20: Cycle Rotation
+    let r_cycle = rotation.clone();
+    setup_pin(
+        20,
+        Box::new(move |_| {
+            println!("Button: Rotation");
+            let current = r_cycle.load(Ordering::Relaxed);
+            let new_val = match current {
+                0 => 90,
+                90 => 180,
+                180 => 270,
+                _ => 0,
+            };
+            r_cycle.store(new_val, Ordering::Relaxed);
+            prefs::save_rotation(new_val);
+        }),
+    );
+
+    kept_pins
 }
