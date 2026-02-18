@@ -18,13 +18,13 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 | 2 | 0.96" | White | 128x64 | SSD1306 | I2C | Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5. | [Makerfocus](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845) | 173 ms |
 | 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) | 87 ms |
 | 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) | 184 ms |
-| 5 | 1.3" | RGB (LCD) | 240x240 | ST7789 | SPI | [Waveshare HAT pinout](https://www.waveshare.com/wiki/1.3inch_LCD_HAT) | [Waveshare] (https://a.co/d/07qvCxcw) | TBD | 
+| 5 | 1.3" | RGB (LCD) | 240x240 | ST7789 | SPI | [Waveshare HAT pinout](https://www.waveshare.com/wiki/1.3inch_LCD_HAT) | [Waveshare](https://a.co/d/07qvCxcw) | TBD | 
 
 \* Draw time is the maximum time it takes to draw a frame as measured on a Raspberry Pi Zero 2W. Observed draw times were ~40% shorter on a Raspberry Pi 5 for I2C and ~20% shorter on SPI.
 
 Note that SPI/I2C needs to enabled via `raspi-config`.
 
-Red film is recommended to preserve night adaptation when using white OLED displays. The white OLED displays are typically much brighter than RGB displays at the lowest brightness settings, so multiple layers of film are advised to reduce the brightness.
+Red film is recommended to preserve night adaptation when using white OLED or LCD displays. The white OLED displays are typically much brighter than RGB displays at the lowest brightness settings, so multiple layers of film are advised to reduce the brightness.
 
 ## Building
 
@@ -67,6 +67,7 @@ The brightness and rotation can be updated in the field by connecting to the e-f
 <img width="209" height="195" alt="cypress-control" src="https://github.com/user-attachments/assets/62f27993-ff80-49a5-b918-38d10ef4caed" />
 
 Physical buttons can be used for control as well. Pins match the Waveshare 1.3 LCD hat:
+
 * 21 - brightness up (KEY1)
 * 16 - brightness down (KEY3)
 * 20 - rotation (KEY2)
