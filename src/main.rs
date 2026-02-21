@@ -204,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         _ => {
             let raw_disp = st7789::St7789::new()?;
-            let disp = RotatedDisplay::new_rgb_240_240(raw_disp, current_rotation);
+            let disp = RotatedDisplay::new_rgb_135_240(raw_disp, current_rotation);
             run_display(
                 disp,
                 running,
@@ -247,9 +247,9 @@ where
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
         Some(match display_type {
-            // Use 128x128 mirror for 240x240 display as well, to keep web implementation simple
-            1 | 5 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
+            1 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
             3 => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
+            // TODO: Implement something for 135x240 displays
             _ => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
         })
     } else {

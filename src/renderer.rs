@@ -101,8 +101,8 @@ where
     D: DrawTarget<Color = Rgb565>,
     D::Error: std::fmt::Debug,
 {
-    pub fn new_rgb_240_240(parent: D, rotation: Rotation) -> Self {
-        RotatedDisplay::new_240_240(
+    pub fn new_rgb_135_240(parent: D, rotation: Rotation) -> Self {
+        RotatedDisplay::new_135_240(
             parent,
             rotation,
             Rgb565::RED,
@@ -173,42 +173,93 @@ where
     D: DrawTarget<Color = C>,
     D::Error: std::fmt::Debug,
 {
-    fn new_240_240(
+    fn new_135_240(
         parent: D,
         rotation: Rotation,
         fg_color: C,
         bg_color: C,
         stale_color: C,
     ) -> Self {
-        let positions = RenderingConfiguration {
-            up_triangle: Triangle::new(Point::new(32, 2), Point::new(2, 62), Point::new(62, 62)),
-            down_triangle: Triangle::new(Point::new(2, 2), Point::new(62, 2), Point::new(32, 62)),
+        let default_rendering = RenderingConfiguration {
+            up_triangle: Triangle::new(
+                Point::new(106, 64),
+                Point::new(82, 112),
+                Point::new(130, 112),
+            ),
+            down_triangle: Triangle::new(
+                Point::new(82, 64),
+                Point::new(130, 64),
+                Point::new(106, 112),
+            ),
             right_triangle: Triangle::new(
-                Point::new(2, 177),
-                Point::new(2, 237),
-                Point::new(62, 207),
+                Point::new(82, 126),
+                Point::new(82, 174),
+                Point::new(130, 150),
             ),
             left_triangle: Triangle::new(
-                Point::new(62, 177),
-                Point::new(62, 237),
-                Point::new(2, 207),
+                Point::new(130, 126),
+                Point::new(130, 174),
+                Point::new(82, 150),
             ),
-            guidance_center: Point::new(120, 120),
-            arc_radius: 40,
-            arrow_length: 80.0,
-            arrowhead_size: 24.0,
+            guidance_center: Point::new(34, 120),
+            arc_radius: 26,
+            arrow_length: 52.0,
+            arrowhead_size: 16.0,
             status_position: TextPosition {
-                start: Point::new(120, 120),
+                start: Point::new(120, 68),
                 vertical: VerticalPosition::Center,
                 horizontal: HorizontalAlignment::Center,
             },
             tilt_position: TextPosition {
-                start: Point::new(237, 2),
+                start: Point::new(130, 2),
                 vertical: VerticalPosition::Top,
                 horizontal: HorizontalAlignment::Right,
             },
             rot_position: TextPosition {
-                start: Point::new(237, 237),
+                start: Point::new(130, 238),
+                vertical: VerticalPosition::Baseline,
+                horizontal: HorizontalAlignment::Right,
+            },
+            dec_label_position: TextPosition {
+                start: Point::new(130, 64),
+                vertical: VerticalPosition::Top,
+                horizontal: HorizontalAlignment::Right,
+            },
+            ra_label_position: TextPosition {
+                start: Point::new(130, 182),
+                vertical: VerticalPosition::Baseline,
+                horizontal: HorizontalAlignment::Right,
+            },
+        };
+        let rotated_rendering = RenderingConfiguration {
+            up_triangle: Triangle::new(Point::new(26, 2), Point::new(2, 50), Point::new(50, 50)),
+            down_triangle: Triangle::new(Point::new(2, 2), Point::new(50, 2), Point::new(26, 50)),
+            right_triangle: Triangle::new(
+                Point::new(2, 72),
+                Point::new(2, 120),
+                Point::new(50, 96),
+            ),
+            left_triangle: Triangle::new(
+                Point::new(50, 72),
+                Point::new(50, 120),
+                Point::new(2, 96),
+            ),
+            guidance_center: Point::new(208, 68),
+            arc_radius: 26,
+            arrow_length: 52.0,
+            arrowhead_size: 16.0,
+            status_position: TextPosition {
+                start: Point::new(120, 68),
+                vertical: VerticalPosition::Center,
+                horizontal: HorizontalAlignment::Center,
+            },
+            tilt_position: TextPosition {
+                start: Point::new(172, 2),
+                vertical: VerticalPosition::Top,
+                horizontal: HorizontalAlignment::Right,
+            },
+            rot_position: TextPosition {
+                start: Point::new(172, 124),
                 vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Right,
             },
@@ -218,17 +269,16 @@ where
                 horizontal: HorizontalAlignment::Left,
             },
             ra_label_position: TextPosition {
-                start: Point::new(2, 237),
+                start: Point::new(2, 124),
                 vertical: VerticalPosition::Baseline,
                 horizontal: HorizontalAlignment::Left,
             },
         };
-
         Self {
             parent,
             rotation,
             status_font: FontRenderer::new::<fonts::u8g2_font_logisoso32_tr>(),
-            guidance_font: FontRenderer::new::<fonts::u8g2_font_logisoso58_tr>(),
+            guidance_font: FontRenderer::new::<fonts::u8g2_font_logisoso50_tr>(),
             fg_color,
             bg_color,
             stale_color,
@@ -237,9 +287,9 @@ where
             arrow_shaft_style: PrimitiveStyle::with_stroke(fg_color, 6),
             arrowhead_style: PrimitiveStyle::with_fill(fg_color),
             arc_style: PrimitiveStyle::with_stroke(fg_color, 6),
-            default_rendering: positions.clone(),
-            rotated_rendering: positions,
-            rotate_status: true,
+            default_rendering,
+            rotated_rendering,
+            rotate_status: false,
             high_precision: true,
         }
     }

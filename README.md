@@ -18,9 +18,10 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 | 2 | 0.96" | White | 128x64 | SSD1306 | I2C | Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5. | [Makerfocus](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845) | 173 ms |
 | 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) | 87 ms |
 | 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) | 184 ms |
-| 5 | 1.3" | RGB (LCD) | 240x240 | ST7789 | SPI | [Waveshare HAT pinout](https://www.waveshare.com/wiki/1.3inch_LCD_HAT) | [Waveshare](https://a.co/d/07qvCxcw) | TBD | 
+| 5 | 1.14" | RGB (LCD) | 135x240 | ST7789 | SPI | [Wiring diagram](https://www.waveshare.com/wiki/1.3inch_LCD_HAT), but move BL to Board 32\*\* | [JESSINIE](https://a.co/d/0iwukeR2) | TBD | 
 
 \* Draw time is the maximum time it takes to draw a frame as measured on a Raspberry Pi Zero 2W. Observed draw times were ~40% shorter on a Raspberry Pi 5 for I2C and ~20% shorter on SPI.
+\*\* Enable hardware PWM. On the Raspberry Pi 5 add "dtoverlay=pwm,pin=12,func=4" to /boot/firmware/config.txt. On older Pi models add "dtoverlay=pwm".
 
 Note that SPI/I2C needs to enabled via `raspi-config`.
 
@@ -54,10 +55,9 @@ cd out/cypress/bin
 ./cypress-display --brightness 128
 ```
 * `--brightness`: (Optional) Set physical display brightness (1-255). Default is 128 (50%).
-* `--buttons`: (Optional) Enable buttons for rotation and brightness.
 * `--mirror`: (Optional) Mirror the physical display to the web UI.
 * `--rotate`: (Optional) Set physical display clockwise rotation (0, 90, 180, or 270). Default is 0.
-* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Mono 128x64 (SSD1306), 3 = Mono 128x32 (SSD1306), 4 = Mono 128x64 (SSD1309), 5 = RGB 240x240 (ST7789). Default is 1.
+* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Mono 128x64 (SSD1306), 3 = Mono 128x32 (SSD1306), 4 = Mono 128x64 (SSD1309), 5 = RGB 135x240 (ST7789). Default is 1.
 * `--test`: (Optional) Test mode that cycles through various guidance values.
 
 ### Brightness and Rotation Control
@@ -65,12 +65,6 @@ cd out/cypress/bin
 The brightness and rotation can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
 
 <img width="209" height="195" alt="cypress-control" src="https://github.com/user-attachments/assets/62f27993-ff80-49a5-b918-38d10ef4caed" />
-
-Physical buttons can be used for control as well. Pins match the Waveshare 1.3 LCD hat:
-
-* 21 - brightness up (KEY1)
-* 16 - brightness down (KEY3)
-* 20 - rotation (KEY2)
 
 ### Display Mirror
 
