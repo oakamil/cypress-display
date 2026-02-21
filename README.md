@@ -18,9 +18,10 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 | 2 | 0.96" | White | 128x64 | SSD1306 | I2C | Connect VCC on the display to pin 1 on the Raspberry Pi, GND to pin 6, DIN to pin 3, and CLK to pin 5. | [Makerfocus](https://www.makerfocus.com/products/2pcs-i2c-oled-display-module-0-91-inch-i2c-ssd1306-oled-display-module-1?variant=31333400608845) | 173 ms |
 | 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) | 87 ms |
 | 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) | 184 ms |
-| 5 | 1.14" | RGB (LCD) | 135x240 | ST7789 | SPI | [Wiring diagram](https://www.waveshare.com/wiki/1.3inch_LCD_HAT), but move BL to Board 32\*\* | [JESSINIE](https://a.co/d/0iwukeR2) | TBD | 
+| 5 | 1.14" | RGB (LCD) | 135x240 | ST7789 | SPI | [Wiring diagram](https://www.waveshare.com/wiki/1.14inch_LCD_Module), but move BL to Board 32\*\* | [JESSINIE](https://a.co/d/0iwukeR2) | TBD | 
 
 \* Draw time is the maximum time it takes to draw a frame as measured on a Raspberry Pi Zero 2W. Observed draw times were ~40% shorter on a Raspberry Pi 5 for I2C and ~20% shorter on SPI.
+
 \*\* Enable hardware PWM. On the Raspberry Pi 5 add "dtoverlay=pwm,pin=12,func=4" to /boot/firmware/config.txt. On older Pi models add "dtoverlay=pwm".
 
 Note that SPI/I2C needs to enabled via `raspi-config`.
