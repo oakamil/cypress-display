@@ -19,10 +19,13 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 | 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) | 87 ms |
 | 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) | 184 ms |
 | 5 | 1.14" | RGB (LCD) | 135x240 | ST7789 | SPI | [Wiring diagram](https://www.waveshare.com/wiki/1.14inch_LCD_Module), but move BL\*\* to Board 32 on a Raspberry Pi 5 | [JESSINIE](https://a.co/d/0iwukeR2) | 15 ms | 
+| 6 | 1.3" | RGB (LCD) | 240x240 | ST7789 | SPI | Same as #5\*\*\* | [Waveshare](https://a.co/d/07qvCxcw) | TBD |
 
 \* Draw time is the maximum time it takes to draw a frame as measured on a Raspberry Pi Zero 2W. Observed draw times were ~40% shorter on a Raspberry Pi 5 for I2C and ~20% shorter on SPI.
 
 \*\* Enable hardware PWM. On the Raspberry Pi 5 add "dtoverlay=pwm,pin=12,func=4" to /boot/firmware/config.txt. On older Pi models add "dtoverlay=pwm".
+
+\*\*\* When using the LCD hat BL must be physically redirected to board pin 32 (Pi 5) or 12 (older Pis) instead of board pin 18.
 
 Note that SPI/I2C needs to enabled via `raspi-config`.
 
@@ -56,9 +59,10 @@ cd out/cypress/bin
 ./cypress-display --brightness 128
 ```
 * `--brightness`: (Optional) Set physical display brightness (1-255). Default is 128 (50%).
+* `--buttons`: (Optional) Enable buttons for rotation and brightness.
 * `--mirror`: (Optional) Mirror the physical display to the web UI.
 * `--rotate`: (Optional) Set physical display clockwise rotation (0, 90, 180, or 270). Default is 0.
-* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Mono 128x64 (SSD1306), 3 = Mono 128x32 (SSD1306), 4 = Mono 128x64 (SSD1309), 5 = RGB 135x240 (ST7789). Default is 1.
+* `--type`: (Optional) Set physical display type. 1 = RGB 128x128, 2 = Mono 128x64 (SSD1306), 3 = Mono 128x32 (SSD1306), 4 = Mono 128x64 (SSD1309), 5 = RGB 135x240 (ST7789), 6 = RGB 240x240 (ST7789). Default is 1.
 * `--test`: (Optional) Test mode that cycles through various guidance values.
 
 ### Brightness and Rotation Control
@@ -66,6 +70,12 @@ cd out/cypress/bin
 The brightness and rotation can be updated in the field by connecting to the e-finder's WiFi network and accessing `cypress-display`'s control page at `https://192.168.4.1:6030`.
 
 <img width="209" height="195" alt="cypress-control" src="https://github.com/user-attachments/assets/62f27993-ff80-49a5-b918-38d10ef4caed" />
+
+Physical buttons can be used for control as well. Pins match the Waveshare 1.3 LCD hat:
+
+* GPIO21 (Board 40) - brightness up (KEY1)
+* GPIO20 (Board 38) - rotation (KEY2)
+* GPIO16 (Board 36) - brightness down (KEY3)
 
 ### Display Mirror
 
