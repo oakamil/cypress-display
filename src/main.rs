@@ -100,8 +100,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let display_type = match args.opt_value_from_str::<_, u32>("--type")? {
-        Some(val) if (1..=5).contains(&val) => val,
-        Some(_) => return Err("Type must be between 1 and 5".into()),
+        Some(val) if (1..=6).contains(&val) => val,
+        Some(_) => return Err("Type must be between 1 and 6".into()),
         None => 1,
     };
 
@@ -202,9 +202,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?
         }
-        _ => {
-            let raw_disp = st7789::St7789::new()?;
+        5 => {
+            let raw_disp = st7789::St7789_135_240::new()?;
             let disp = RotatedDisplay::new_rgb_135_240(raw_disp, current_rotation);
+            run_display(
+                disp,
+                running,
+                shared_brightness,
+                shared_rotation,
+                test_mode,
+                mirror_enabled,
+                display_type,
+                shared_frame,
+            )
+            .await?
+        }
+        _ => {
+            let raw_disp = st7789::St7789_240_240::new()?;
+            let disp = RotatedDisplay::new_rgb_240_240(raw_disp, current_rotation);
             run_display(
                 disp,
                 running,
@@ -247,7 +262,8 @@ where
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
         Some(match display_type {
-            1 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
+            // Use 128x128 mirror for a 240x240 display as well, the UI should be the same
+            1 | 6 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
             3 => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
             // TODO: Implement something for 135x240 displays
             _ => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
@@ -334,6 +350,9 @@ where
         }
 
         let elapsed = update_time.elapsed().as_millis() as u64;
+        if test_mode {
+            println!("Rendered frame in {} ms", elapsed);
+        }
         if elapsed < 100 {
             sleep(Duration::from_millis(100 - elapsed)).await;
         }
@@ -383,7 +402,7 @@ fn start_button_monitor(brightness: Arc<AtomicU8>, rotation: Arc<AtomicU16>) -> 
         Box::new(move |_| {
             println!("Button: Brightness Up");
             let current = b_inc.load(Ordering::Relaxed);
-            let new_val = current.saturating_add(8);
+            let new_val = ((current + 8) % 255).max(5);
             b_inc.store(new_val, Ordering::Relaxed);
             prefs::save_brightness(new_val);
         }),
@@ -396,8 +415,7 @@ fn start_button_monitor(brightness: Arc<AtomicU8>, rotation: Arc<AtomicU16>) -> 
         Box::new(move |_| {
             println!("Button: Brightness Down");
             let current = b_dec.load(Ordering::Relaxed);
-            // Ensure it doesn't go completely black (min 8)
-            let new_val = current.saturating_sub(8).max(8);
+            let new_val = ((current - 8) % 255).max(5);
             b_dec.store(new_val, Ordering::Relaxed);
             prefs::save_brightness(new_val);
         }),

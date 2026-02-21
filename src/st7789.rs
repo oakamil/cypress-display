@@ -14,19 +14,41 @@ use rppal::{
     spi::{Bus, Mode, SimpleHalSpiDevice, SlaveSelect, Spi},
 };
 use std::error::Error;
+use std::marker::PhantomData;
 
-const WIDTH: usize = 135;
-const HEIGHT: usize = 240;
-const PIXEL_COUNT: usize = WIDTH * HEIGHT;
-
-pub struct St7789 {
-    display: Display<SpiInterface<'static, SimpleHalSpiDevice, OutputPin>, ST7789, OutputPin>,
-    // Boxed fixed-size array for the in-memory framebuffer
-    buffer: Box<[Rgb565; PIXEL_COUNT]>,
-    bl: Pwm,
+// Trait to configure resolution and offsets for various ST7789 screen variations
+pub trait St7789Config: Send + Sync {
+    const WIDTH: u16;
+    const HEIGHT: u16;
+    const OFFSET_X: u16;
+    const OFFSET_Y: u16;
 }
 
-impl St7789 {
+pub struct Display135x240;
+impl St7789Config for Display135x240 {
+    const WIDTH: u16 = 135;
+    const HEIGHT: u16 = 240;
+    const OFFSET_X: u16 = 52;
+    const OFFSET_Y: u16 = 40;
+}
+
+pub struct Display240x240;
+impl St7789Config for Display240x240 {
+    const WIDTH: u16 = 240;
+    const HEIGHT: u16 = 240;
+    const OFFSET_X: u16 = 0;
+    const OFFSET_Y: u16 = 0;
+}
+
+pub struct St7789Display<C: St7789Config, const N: usize> {
+    display: Display<SpiInterface<'static, SimpleHalSpiDevice, OutputPin>, ST7789, OutputPin>,
+    // Boxed fixed-size array for the in-memory framebuffer required by `embedded_graphics_framebuf`
+    buffer: Box<[Rgb565; N]>,
+    bl: Pwm,
+    _config: PhantomData<C>,
+}
+
+impl<C: St7789Config, const N: usize> St7789Display<C, N> {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 160_000_000, Mode::Mode0)?;
 
@@ -44,14 +66,14 @@ impl St7789 {
 
         let mut display = Builder::new(ST7789, spii)
             .reset_pin(rst)
-            .display_size(WIDTH as u16, HEIGHT as u16)
-            .display_offset(52, 40)
+            .display_size(C::WIDTH, C::HEIGHT)
+            .display_offset(C::OFFSET_X, C::OFFSET_Y)
             .invert_colors(ColorInversion::Inverted)
             .init(&mut Delay)
             .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
 
         // Allocate the main rendering framebuffer on the heap
-        let vec_buffer = vec![Rgb565::BLACK; PIXEL_COUNT];
+        let vec_buffer = vec![Rgb565::BLACK; N];
         let buffer = vec_buffer
             .into_boxed_slice()
             .try_into()
@@ -65,12 +87,13 @@ impl St7789 {
             display,
             buffer,
             bl,
+            _config: PhantomData,
         })
     }
 }
 
 #[async_trait]
-impl TargetDisplay for St7789 {
+impl<C: St7789Config, const N: usize> TargetDisplay for St7789Display<C, N> {
     async fn turn_on(&mut self) -> Result<(), Box<dyn Error>> {
         self.bl
             .set_duty_cycle(0.5)
@@ -92,7 +115,8 @@ impl TargetDisplay for St7789 {
     }
 
     async fn flush(&mut self) -> Result<(), Box<dyn Error>> {
-        let screen_area = Rectangle::new(Point::zero(), Size::new(WIDTH as u32, HEIGHT as u32));
+        let screen_area =
+            Rectangle::new(Point::zero(), Size::new(C::WIDTH as u32, C::HEIGHT as u32));
         self.display
             .fill_contiguous(&screen_area, self.buffer.iter().copied())
             .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
@@ -107,7 +131,7 @@ impl TargetDisplay for St7789 {
     }
 }
 
-impl DrawTarget for St7789 {
+impl<C: St7789Config, const N: usize> DrawTarget for St7789Display<C, N> {
     type Color = Rgb565;
     type Error = Box<dyn Error>;
 
@@ -115,13 +139,13 @@ impl DrawTarget for St7789 {
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        let mut fb = FrameBuf::new(&mut *self.buffer, WIDTH, HEIGHT);
+        let mut fb = FrameBuf::new(&mut *self.buffer, C::WIDTH as usize, C::HEIGHT as usize);
         fb.draw_iter(pixels)
             .map_err(|_| Box::<dyn Error>::from("Framebuffer draw error"))
     }
 
     fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
-        let mut fb = FrameBuf::new(&mut *self.buffer, WIDTH, HEIGHT);
+        let mut fb = FrameBuf::new(&mut *self.buffer, C::WIDTH as usize, C::HEIGHT as usize);
         fb.fill_solid(area, color)
             .map_err(|_| Box::<dyn Error>::from("Framebuffer fill error"))
     }
@@ -130,20 +154,24 @@ impl DrawTarget for St7789 {
     where
         I: IntoIterator<Item = Self::Color>,
     {
-        let mut fb = FrameBuf::new(&mut *self.buffer, WIDTH, HEIGHT);
+        let mut fb = FrameBuf::new(&mut *self.buffer, C::WIDTH as usize, C::HEIGHT as usize);
         fb.fill_contiguous(area, colors)
             .map_err(|_| Box::<dyn Error>::from("Framebuffer fill error"))
     }
 
     fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
-        let mut fb = FrameBuf::new(&mut *self.buffer, WIDTH, HEIGHT);
+        let mut fb = FrameBuf::new(&mut *self.buffer, C::WIDTH as usize, C::HEIGHT as usize);
         fb.clear(color)
             .map_err(|_| Box::<dyn Error>::from("Framebuffer clear error"))
     }
 }
 
-impl OriginDimensions for St7789 {
+impl<C: St7789Config, const N: usize> OriginDimensions for St7789Display<C, N> {
     fn size(&self) -> Size {
-        Size::new(WIDTH as u32, HEIGHT as u32)
+        Size::new(C::WIDTH as u32, C::HEIGHT as u32)
     }
 }
+
+// Aliases for convenience
+pub type St7789_135_240 = St7789Display<Display135x240, { 135 * 240 }>;
+pub type St7789_240_240 = St7789Display<Display240x240, { 240 * 240 }>;
