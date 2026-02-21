@@ -19,7 +19,7 @@ This software is intended to run on Linux-based embedded hardware, specifically 
 | 3 | 0.91" | White | 128x32 | SSD1306 | I2C | Same as above | [HiLetgo](https://a.co/d/04xFymht) | 87 ms |
 | 4 | 1.54" | White | 128x64 | SSD1309 | I2C | Same as above | [Coliao](https://a.co/d/0aAaMkcY) | 184 ms |
 | 5 | 1.14" | RGB (LCD) | 135x240 | ST7789 | SPI | [Wiring diagram](https://www.waveshare.com/wiki/1.14inch_LCD_Module), but move BL\*\* to Board 32 on a Raspberry Pi 5 | [JESSINIE](https://a.co/d/0iwukeR2) | 15 ms | 
-| 6 | 1.3" | RGB (LCD) | 240x240 | ST7789 | SPI | Same as #5\*\*\* | [Waveshare](https://a.co/d/07qvCxcw) | TBD |
+| 6 | 1.3" | RGB (LCD) | 240x240 | ST7789 | SPI | Same as #5\*\*\* | [Waveshare](https://a.co/d/07qvCxcw) | 20 ms |
 
 \* Draw time is the maximum time it takes to draw a frame as measured on a Raspberry Pi Zero 2W. Observed draw times were ~40% shorter on a Raspberry Pi 5 for I2C and ~20% shorter on SPI.
 
