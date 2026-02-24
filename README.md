@@ -133,7 +133,7 @@ sudo raspi-config
 4. Continue by selecting `<OK>`
 5. Select `<Finish>` to exit
 
-* Increase the I2C clock speed by adding to /boot/firmware/config.txt `dtoverlay=i2c_arm_baudrate=400000` and rebooting. *
+For better performance increase the I2C clock speed by adding to /boot/firmware/config.txt `dtoverlay=i2c_arm_baudrate=400000` and rebooting.
 
 ### Install Script
 
