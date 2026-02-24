@@ -31,13 +31,27 @@ pub struct ServerContext {
 }
 
 pub struct Framebuffer {
-    pub pixels: [Rgb565; 128 * 128],
+    // Heap-allocated to prevent stack overflows with the 256x256 buffer
+    pub pixels: Box<[Rgb565; 256 * 256]>,
+    pub pixel_doubling: bool,
 }
 
 impl Framebuffer {
     pub fn new() -> Self {
+        let vec_buffer = vec![Rgb565::BLACK; 256 * 256];
+        let pixels = vec_buffer.into_boxed_slice().try_into().unwrap();
         Self {
-            pixels: [Rgb565::BLACK; 128 * 128],
+            pixels,
+            pixel_doubling: false,
+        }
+    }
+
+    pub fn new_with_pixel_doubling() -> Self {
+        let vec_buffer = vec![Rgb565::BLACK; 256 * 256];
+        let pixels = vec_buffer.into_boxed_slice().try_into().unwrap();
+        Self {
+            pixels,
+            pixel_doubling: true,
         }
     }
 
@@ -54,7 +68,7 @@ impl Framebuffer {
 
 impl OriginDimensions for Framebuffer {
     fn size(&self) -> Size {
-        Size::new(128, 128)
+        Size::new(256, 256)
     }
 }
 
@@ -67,9 +81,23 @@ impl DrawTarget for Framebuffer {
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(point, color) in pixels {
-            if point.x >= 0 && point.x < 128 && point.y >= 0 && point.y < 128 {
-                let index = (point.y as usize) * 128 + (point.x as usize);
-                self.pixels[index] = color;
+            if point.x >= 0 && point.x < 256 && point.y >= 0 && point.y < 256 {
+                let x = point.x as usize;
+                let y = point.y as usize;
+
+                // Apply pixel doubling only if enabled AND within the first 128x128 logical pixels
+                if self.pixel_doubling && x < 128 && y < 128 {
+                    let base_x = x * 2;
+                    let base_y = y * 2;
+
+                    self.pixels[base_y * 256 + base_x] = color;
+                    self.pixels[base_y * 256 + base_x + 1] = color;
+                    self.pixels[(base_y + 1) * 256 + base_x] = color;
+                    self.pixels[(base_y + 1) * 256 + base_x + 1] = color;
+                } else {
+                    // Regular 1:1 drawing
+                    self.pixels[y * 256 + x] = color;
+                }
             }
         }
         Ok(())

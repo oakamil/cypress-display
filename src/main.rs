@@ -115,8 +115,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
     let shared_rotation = Arc::new(AtomicU16::new(initial_rotation));
 
-    // Initialize shared frame with black pixels (128*128*2 bytes)
-    let shared_frame = Arc::new(RwLock::new(vec![0u8; 128 * 128 * 2]));
+    // Initialize shared frame with black pixels (256*256*2 bytes)
+    let shared_frame = Arc::new(RwLock::new(vec![0u8; 256 * 256 * 2]));
 
     let server_ctx = ServerContext {
         brightness: shared_brightness.clone(),
@@ -262,11 +262,20 @@ where
     // Virtual framebuffer for web rendering
     let mut web_fb = if mirror_enabled {
         Some(match display_type {
-            // Use 128x128 mirror for a 240x240 display as well, the UI should be the same
-            1 | 6 => RotatedDisplay::new_rgb_128_128(Framebuffer::new(), current_rotation),
-            3 => RotatedDisplay::new_rgb_128_32(Framebuffer::new(), current_rotation),
-            // TODO: Implement something for 135x240 displays
-            _ => RotatedDisplay::new_rgb_128_64(Framebuffer::new(), current_rotation),
+            1 => RotatedDisplay::new_rgb_128_128(
+                Framebuffer::new_with_pixel_doubling(),
+                current_rotation,
+            ),
+            3 => RotatedDisplay::new_rgb_128_32(
+                Framebuffer::new_with_pixel_doubling(),
+                current_rotation,
+            ),
+            5 => RotatedDisplay::new_rgb_135_240(Framebuffer::new(), current_rotation),
+            6 => RotatedDisplay::new_rgb_240_240(Framebuffer::new(), current_rotation),
+            _ => RotatedDisplay::new_rgb_128_64(
+                Framebuffer::new_with_pixel_doubling(),
+                current_rotation,
+            ),
         })
     } else {
         None

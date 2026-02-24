@@ -36,13 +36,13 @@
 </head>
 <body>
     <div class="display-container">
-        <canvas id="screen" width="128" height="128"></canvas>
+        <canvas id="screen" width="256" height="256"></canvas>
     </div>
 
     <script>
         const canvas = document.getElementById('screen');
         const ctx = canvas.getContext('2d');
-        const imageData = ctx.createImageData(128, 128);
+        const imageData = ctx.createImageData(256, 256);
         const data = imageData.data;
 
         async function fetchFrame() {
