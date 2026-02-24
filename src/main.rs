@@ -115,8 +115,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shared_brightness = Arc::new(AtomicU8::new(initial_brightness));
     let shared_rotation = Arc::new(AtomicU16::new(initial_rotation));
 
-    // Initialize shared frame with black pixels (256*256*2 bytes)
-    let shared_frame = Arc::new(RwLock::new(vec![0u8; 256 * 256 * 2]));
+    // Initialize shared frame only if the mirror is enabled to save memory
+    let shared_frame = Arc::new(RwLock::new(if mirror_enabled {
+        vec![0u8; 256 * 256 * 2]
+    } else {
+        Vec::new()
+    }));
 
     let server_ctx = ServerContext {
         brightness: shared_brightness.clone(),
