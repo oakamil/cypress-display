@@ -11,101 +11,92 @@ use ssd1306::{
 };
 use std::error::Error;
 
-type Interface = I2CInterface<I2c>;
-type Driver32 =
-    Ssd1306Driver<Interface, DisplaySize128x32, BufferedGraphicsMode<DisplaySize128x32>>;
-type Driver64 =
-    Ssd1306Driver<Interface, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>;
-
-enum DriverVariant {
-    Size128x32(Driver32),
-    Size128x64(Driver64),
+// Configuration trait to specify display dimensions
+pub trait Ssd1306Config: Send + Sync
+where
+    <Self::Size as DisplaySize>::Buffer: Send + Sync,
+{
+    type Size: DisplaySize + Send + Sync;
+    fn create_size() -> Self::Size;
 }
 
-pub struct Ssd1306 {
-    driver: DriverVariant,
-}
-
-impl Ssd1306 {
-    pub fn new_128_32() -> Result<Self, Box<dyn Error>> {
-        let i2c = I2c::new()?;
-        let interface = I2CDisplayInterface::new(i2c);
-
-        let driver = Ssd1306Driver::new(interface, DisplaySize128x32, DisplayRotation::Rotate0)
-            .into_buffered_graphics_mode();
-
-        Ok(Self {
-            driver: DriverVariant::Size128x32(driver),
-        })
+pub struct Config128x32;
+impl Ssd1306Config for Config128x32 {
+    type Size = DisplaySize128x32;
+    fn create_size() -> Self::Size {
+        DisplaySize128x32
     }
+}
 
-    pub fn new_128_64() -> Result<Self, Box<dyn Error>> {
+pub struct Config128x64;
+impl Ssd1306Config for Config128x64 {
+    type Size = DisplaySize128x64;
+    fn create_size() -> Self::Size {
+        DisplaySize128x64
+    }
+}
+
+type Interface = I2CInterface<I2c>;
+
+pub struct Ssd1306Display<C: Ssd1306Config>
+where
+    <C::Size as DisplaySize>::Buffer: Send + Sync,
+{
+    driver: Ssd1306Driver<Interface, C::Size, BufferedGraphicsMode<C::Size>>,
+}
+
+impl<C: Ssd1306Config> Ssd1306Display<C>
+where
+    <C::Size as DisplaySize>::Buffer: Send + Sync,
+{
+    pub fn new() -> Result<Self, Box<dyn Error>> {
         let i2c = I2c::new()?;
         let interface = I2CDisplayInterface::new(i2c);
 
-        let driver = Ssd1306Driver::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+        let driver = Ssd1306Driver::new(interface, C::create_size(), DisplayRotation::Rotate0)
             .into_buffered_graphics_mode();
 
-        Ok(Self {
-            driver: DriverVariant::Size128x64(driver),
-        })
+        Ok(Self { driver })
     }
 }
 
 #[async_trait]
-impl TargetDisplay for Ssd1306 {
+impl<C: Ssd1306Config> TargetDisplay for Ssd1306Display<C>
+where
+    <C::Size as DisplaySize>::Buffer: Send + Sync,
+{
     async fn turn_on(&mut self) -> Result<(), Box<dyn Error>> {
-        match &mut self.driver {
-            DriverVariant::Size128x32(d) => {
-                d.init()
-                    .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
-                d.set_display_on(true)
-                    .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
-            }
-            DriverVariant::Size128x64(d) => {
-                d.init()
-                    .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
-                d.set_display_on(true)
-                    .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
-            }
-        }
+        self.driver
+            .init()
+            .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))?;
+        self.driver
+            .set_display_on(true)
+            .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
     }
 
     async fn turn_off(&mut self) -> Result<(), Box<dyn Error>> {
-        match &mut self.driver {
-            DriverVariant::Size128x32(d) => d
-                .set_display_on(false)
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-            DriverVariant::Size128x64(d) => d
-                .set_display_on(false)
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-        }
+        self.driver
+            .set_display_on(false)
+            .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
     }
 
     async fn flush(&mut self) -> Result<(), Box<dyn Error>> {
-        match &mut self.driver {
-            DriverVariant::Size128x32(d) => d
-                .flush()
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-            DriverVariant::Size128x64(d) => d
-                .flush()
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-        }
+        self.driver
+            .flush()
+            .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
     }
 
     async fn set_brightness(&mut self, brightness: u8) -> Result<(), Box<dyn Error>> {
-        match &mut self.driver {
-            DriverVariant::Size128x32(d) => d
-                .set_brightness(Brightness::custom(1, brightness))
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-            DriverVariant::Size128x64(d) => d
-                .set_brightness(Brightness::custom(1, brightness))
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-        }
+        self.driver
+            .set_brightness(Brightness::custom(1, brightness))
+            .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
     }
 }
 
-impl DrawTarget for Ssd1306 {
+impl<C: Ssd1306Config> DrawTarget for Ssd1306Display<C>
+where
+    <C::Size as DisplaySize>::Buffer: Send + Sync,
+{
     type Color = BinaryColor;
     type Error = Box<dyn Error>;
 
@@ -113,33 +104,26 @@ impl DrawTarget for Ssd1306 {
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        match &mut self.driver {
-            DriverVariant::Size128x32(d) => d
-                .draw_iter(pixels)
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-            DriverVariant::Size128x64(d) => d
-                .draw_iter(pixels)
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-        }
+        self.driver
+            .draw_iter(pixels)
+            .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
     }
 
     fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
-        match &mut self.driver {
-            DriverVariant::Size128x32(d) => d
-                .clear(color)
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-            DriverVariant::Size128x64(d) => d
-                .clear(color)
-                .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e))),
-        }
+        self.driver
+            .clear(color)
+            .map_err(|e| Box::<dyn Error>::from(format!("{:?}", e)))
     }
 }
 
-impl OriginDimensions for Ssd1306 {
+impl<C: Ssd1306Config> OriginDimensions for Ssd1306Display<C>
+where
+    <C::Size as DisplaySize>::Buffer: Send + Sync,
+{
     fn size(&self) -> Size {
-        match &self.driver {
-            DriverVariant::Size128x32(d) => d.size(),
-            DriverVariant::Size128x64(d) => d.size(),
-        }
+        self.driver.size()
     }
 }
+
+pub type Ssd1306_128_32 = Ssd1306Display<Config128x32>;
+pub type Ssd1306_128_64 = Ssd1306Display<Config128x64>;

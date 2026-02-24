@@ -158,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?
         }
         2 => {
-            let raw_disp = ssd1306::Ssd1306::new_128_64()?;
+            let raw_disp = ssd1306::Ssd1306_128_64::new()?;
             let disp = RotatedDisplay::new_binary_128_64(raw_disp, current_rotation);
             run_display(
                 disp,
@@ -173,7 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?
         }
         3 => {
-            let raw_disp = ssd1306::Ssd1306::new_128_32()?;
+            let raw_disp = ssd1306::Ssd1306_128_32::new()?;
             let disp = RotatedDisplay::new_binary_128_32(raw_disp, current_rotation);
             run_display(
                 disp,

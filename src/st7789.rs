@@ -50,7 +50,7 @@ pub struct St7789Display<C: St7789Config, const N: usize> {
 
 impl<C: St7789Config, const N: usize> St7789Display<C, N> {
     pub fn new() -> Result<Self, Box<dyn Error>> {
-        let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 160_000_000, Mode::Mode0)?;
+        let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 40_000_000, Mode::Mode0)?;
 
         let gpio = Gpio::new()?;
         let dc = gpio.get(25)?.into_output();
