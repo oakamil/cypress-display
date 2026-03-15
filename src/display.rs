@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Omair Kamil
+// Required Notice: Copyright (c) 2026 Omair Kamil
 // See LICENSE file in root directory for license terms.
 
 use async_trait::async_trait;

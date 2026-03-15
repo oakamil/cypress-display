@@ -152,7 +152,7 @@ The installation will set up `cypress-display` for use with a 128x128 RGB displa
 
 ## License
 
-This project is licensed under the Functional Source License, Version 1.1, MIT Future License (FSL-1.1-MIT).
+This project is licensed under the PolyForm Noncommercial License 1.0.0.
 
 See LICENSE.md for full details.
 
